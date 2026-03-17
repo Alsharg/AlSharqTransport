@@ -32,7 +32,7 @@ export default function AdminDashboard() {
       color: theme.accent,
       items: [
         { label: 'إدارة المشرفين', icon: 'admin-panel-settings', route: '/admin/admins', badge: 0 },
-        { label: 'سجل العمليات', icon: 'history', route: '/admin/admins', badge: 0 },
+        { label: 'سجل العمليات', icon: 'history', route: '/admin/audit-logs', badge: 0 },
         { label: 'الصلاحيات', icon: 'security', route: '/admin/admins', badge: 0 },
       ],
     },
@@ -52,8 +52,8 @@ export default function AdminDashboard() {
       icon: 'people-outline',
       color: '#8B5CF6',
       items: [
-        { label: 'إدارة العملاء', icon: 'person-search', route: '/admin/admins', badge: 0 },
-        { label: 'العقود', icon: 'description', route: '/admin/admins', badge: 0 },
+        { label: 'إدارة العملاء', icon: 'person-search', route: '/admin/clients', badge: 0 },
+        { label: 'العقود', icon: 'description', route: '/admin/contracts', badge: 0 },
         { label: 'الإعلانات', icon: 'campaign', route: '/admin/announcements', badge: 0 },
       ],
     },
@@ -64,6 +64,7 @@ export default function AdminDashboard() {
       items: [
         { label: 'متابعة المشاوير', icon: 'route', route: '/admin/(tabs)/trips', badge: availableCount },
         { label: 'مشوار جديد', icon: 'add-circle', route: '/admin/trip-form', badge: 0 },
+        { label: 'التسعير الديناميكي', icon: 'attach-money', route: '/admin/pricing', badge: 0 },
         { label: 'إيصالات المحفظة', icon: 'account-balance-wallet', route: '/admin/wallet-receipts', badge: 0 },
         { label: 'المساعد الذكي', icon: 'smart-toy', route: '/ai-assistant', badge: 0 },
       ],

@@ -19,6 +19,9 @@ export default function IndexScreen() {
     if (userRole === 'admin' || userRole === 'supervisor') {
       return <Redirect href="/admin" />;
     }
+    if (userRole === 'client') {
+      return <Redirect href="/client" />;
+    }
     return <Redirect href="/(tabs)" />;
   }
 

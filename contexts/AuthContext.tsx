@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setOperationLoading(false);
           return { success: false, error: 'حسابك قيد المراجعة. ستتلقى إشعاراً عند القبول.' };
         }
-        if (profile && !profile.is_active) {
+        if (profile && !profile.is_active && profile.role !== 'client') {
           await api.signOutUser();
           setAuthUser(null);
           setUser(null);
@@ -141,6 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await api.signOutUser();
           setAuthUser(null);
           setUser(null);
+        } else if (role === 'client') {
+          // Client — auto-approve and keep logged in
+          await api.updateUserProfile(result.user.id, { approval_status: 'approved', is_active: true });
+          setAuthUser(result.user);
+          await loadProfile(result.user.id);
         } else {
           // Admin/Supervisor - keep logged in
           setAuthUser(result.user);

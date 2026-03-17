@@ -22,7 +22,7 @@ export default function LoginScreen() {
 
   if (isLoggedIn) {
     if (userRole === 'admin' || userRole === 'supervisor') router.replace('/admin');
-    else if (userRole === 'client') router.replace('/(tabs)');
+    else if (userRole === 'client') router.replace('/client');
     else router.replace('/(tabs)');
     return null;
   }
@@ -175,7 +175,7 @@ export default function LoginScreen() {
             ) : (
               <View style={styles.registerRow}>
                 <Text style={styles.registerText}>عميل جديد؟</Text>
-                <Pressable onPress={() => router.push('/register')}>
+                <Pressable onPress={() => router.push('/client-register')}>
                   <Text style={[styles.registerLink, { color: currentPortal.color }]}>سجل الآن</Text>
                 </Pressable>
               </View>

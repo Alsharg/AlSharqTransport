@@ -15,6 +15,10 @@ export default function AdminLayout() {
       <Stack.Screen name="admins" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="admin-form" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="wallet-receipts" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="audit-logs" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="pricing" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="clients" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="contracts" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }

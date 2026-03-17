@@ -30,6 +30,8 @@ export default function RootLayout() {
               <Stack.Screen name="notifications" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
               <Stack.Screen name="ai-assistant" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
               <Stack.Screen name="admin" options={{ animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="client" options={{ animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="client-register" options={{ animation: 'slide_from_bottom' }} />
               <Stack.Screen name="edit-profile" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
               <Stack.Screen name="wallet" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             </Stack>
