@@ -293,6 +293,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTrips(prev => prev.map(t => t.id === tripId ? { ...t, status: 'archived' as const } : t));
   }, []);
 
+  const logAuditAction = useCallback(async (action: string, targetType: string, targetId?: string, details?: Record<string, any>) => {
+    if (!userId || !profile) return;
+    await api.createAuditLog({
+      actor_id: userId,
+      actor_name: profile.full_name || profile.username || 'مستخدم',
+      actor_role: profile.role,
+      action, target_type: targetType, target_id: targetId, details,
+    });
+  }, [userId, profile]);
+
   // Admin: Confirm trip (تم الاتفاق) — set status to confirmed and assign driver
   const confirmTrip = useCallback(async (tripId: string, driverId: string) => {
     const result = await api.updateTrip(tripId, { status: 'confirmed', driver_id: driverId });
@@ -324,16 +334,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await api.markNotificationReadDB(id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
   }, []);
-
-  const logAuditAction = useCallback(async (action: string, targetType: string, targetId?: string, details?: Record<string, any>) => {
-    if (!userId || !profile) return;
-    await api.createAuditLog({
-      actor_id: userId,
-      actor_name: profile.full_name || profile.username || 'مستخدم',
-      actor_role: profile.role,
-      action, target_type: targetType, target_id: targetId, details,
-    });
-  }, [userId, profile]);
 
   const toggleDriverActive = useCallback(async (driverId: string) => {
     const driver = allDriversList.find(d => d.id === driverId);
