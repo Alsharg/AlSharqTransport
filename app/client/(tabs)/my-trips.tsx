@@ -13,11 +13,9 @@ export default function ClientMyTripsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  const { trips } = useApp();
+  const { clientTrips } = useApp();
 
-  const myTrips = trips
-    .filter(t => t.created_by === user?.id || (t.client_phone && t.client_phone === user?.phone))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const myTrips = [...clientTrips].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>

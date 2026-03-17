@@ -7,18 +7,15 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { theme, typography } from '../../../constants/theme';
 import { useApp } from '../../../contexts/AppContext';
 import { useAuth } from '../../../hooks/useAuth';
-import { getTripStatusLabel, getStatusColor, formatTripNumber } from '../../../services/types';
+import { getTripStatusLabel, getStatusColor, formatTripNumber, getTripTypeLabel } from '../../../services/types';
 
 export default function ClientHomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  const { trips, notifications, unreadNotifications } = useApp();
+  const { clientTrips, clientActiveTrips, clientCompletedTrips, notifications, unreadNotifications } = useApp();
 
   const displayName = user?.full_name || user?.username || 'عميل';
-  const myTrips = trips.filter(t => t.created_by === user?.id || t.client_name);
-  const activeTrips = myTrips.filter(t => ['available', 'accepted', 'inProgress', 'confirmed', 'agreed'].includes(t.status));
-  const completedTrips = myTrips.filter(t => t.status === 'completed');
 
   const quickActions = [
     { icon: 'add-circle', label: 'مشوار جديد', color: '#8B5CF6', route: '/client/(tabs)/request-trip' },
@@ -71,27 +68,27 @@ export default function ClientHomeScreen() {
         {/* Stats */}
         <Animated.View entering={FadeInDown.duration(400).delay(300)} style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: '#8B5CF6' }]}>{activeTrips.length}</Text>
+            <Text style={[styles.statValue, { color: '#8B5CF6' }]}>{clientActiveTrips.length}</Text>
             <Text style={styles.statLabel}>نشط</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: theme.success }]}>{completedTrips.length}</Text>
+            <Text style={[styles.statValue, { color: theme.success }]}>{clientCompletedTrips.length}</Text>
             <Text style={styles.statLabel}>مكتمل</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: theme.accent }]}>{myTrips.length}</Text>
+            <Text style={[styles.statValue, { color: theme.accent }]}>{clientTrips.length}</Text>
             <Text style={styles.statLabel}>إجمالي</Text>
           </View>
         </Animated.View>
 
         {/* Active Trips */}
-        {activeTrips.length > 0 ? (
+        {clientActiveTrips.length > 0 ? (
           <Animated.View entering={FadeInDown.duration(400).delay(400)}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>المشاوير النشطة</Text>
-              <View style={styles.countBadge}><Text style={styles.countBadgeText}>{activeTrips.length}</Text></View>
+              <View style={styles.countBadge}><Text style={styles.countBadgeText}>{clientActiveTrips.length}</Text></View>
             </View>
-            {activeTrips.slice(0, 3).map(trip => {
+            {clientActiveTrips.slice(0, 3).map(trip => {
               const color = getStatusColor(trip.status);
               return (
                 <Pressable key={trip.id} onPress={() => router.push({ pathname: '/trip-detail', params: { id: trip.id } })} style={styles.tripCard}>

@@ -31,7 +31,7 @@ export default function AdminDriversScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { showAlert } = useAlert();
-  const { allDriversList, toggleDriverActive, earnings, loadDrivers } = useApp();
+  const { allDriversList, toggleDriverActive, earnings, loadDrivers, logAuditAction } = useApp();
   const [filter, setFilter] = useState<Filter>('all');
 
   useEffect(() => { loadDrivers(); }, []);
@@ -53,7 +53,16 @@ export default function AdminDriversScreen() {
       {
         text: action,
         style: driver.is_active ? 'destructive' : 'default',
-        onPress: async () => { await toggleDriverActive(driver.id); await loadDrivers(); },
+        onPress: async () => {
+          await toggleDriverActive(driver.id);
+          await logAuditAction(
+            driver.is_active ? 'deactivate_driver' : 'activate_driver',
+            'driver',
+            driver.id,
+            { driver_name: driver.full_name || driver.username }
+          );
+          await loadDrivers();
+        },
       },
     ]);
   };

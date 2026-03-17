@@ -28,7 +28,7 @@ export default function AdminTripsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { showAlert } = useAlert();
-  const { trips, deleteTrip, cancelTrip, archiveTrip, confirmTrip, allDriversList, getApplicationsForTrip, updateTrip: updateTripAction } = useApp();
+  const { trips, deleteTrip, cancelTrip, archiveTrip, confirmTrip, allDriversList, getApplicationsForTrip, updateTrip: updateTripAction, logAuditAction } = useApp();
   const [filter, setFilter] = useState<TripFilter>('all');
   const [statusMenuTripId, setStatusMenuTripId] = useState<string | null>(null);
   const [clientModal, setClientModal] = useState<Trip | null>(null);
@@ -90,8 +90,9 @@ export default function AdminTripsScreen() {
   const handlePickDriver = async (trip: Trip, driverId: string) => {
     setDriverPickerTrip(null);
     const result = await confirmTrip(trip.id, driverId);
-    if (!result.error) showAlert('تم', 'تم تأكيد الاتفاق وتعيين السائق بنجاح');
-    else showAlert('خطأ', result.error);
+    if (!result.error) {
+      showAlert('تم', 'تم تأكيد الاتفاق وتعيين السائق بنجاح');
+    } else showAlert('خطأ', result.error);
   };
 
   // Get active/approved drivers for picker
@@ -170,8 +171,27 @@ export default function AdminTripsScreen() {
                 {trip.status === 'available' && pendingApps > 0 ? (
                   <Pressable onPress={() => router.push({ pathname: '/admin/trip-applicants', params: { tripId: trip.id } })} style={styles.applicantsBar}>
                     <MaterialIcons name="people" size={14} color={theme.primary} />
-                    <Text style={styles.applicantsText}>{pendingApps} سائق متقدم</Text>
+                    <Text style={styles.applicantsText}>{pendingApps} سائق بانتظار الموافقة</Text>
                     <MaterialIcons name="chevron-left" size={16} color={theme.primary} />
+                  </Pressable>
+                ) : null}
+
+                {/* Quick approve first applicant */}
+                {trip.status === 'available' && pendingApps > 0 ? (
+                  <Pressable
+                    onPress={() => {
+                      const firstApp = apps.find(a => a.status === 'pending');
+                      if (firstApp) {
+                        showAlert('موافقة سريعة', `هل تريد الموافقة على السائق ${firstApp.driver_name} لهذا المشوار؟`, [
+                          { text: 'إلغاء', style: 'cancel' },
+                          { text: 'موافقة', onPress: () => handlePickDriver(trip, firstApp.driver_id) },
+                        ]);
+                      }
+                    }}
+                    style={[styles.applicantsBar, { backgroundColor: theme.success + '12', marginTop: 0 }]}
+                  >
+                    <MaterialIcons name="check-circle" size={14} color={theme.success} />
+                    <Text style={[styles.applicantsText, { color: theme.success }]}>موافقة سريعة على أول متقدم</Text>
                   </Pressable>
                 ) : null}
 

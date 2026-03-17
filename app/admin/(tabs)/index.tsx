@@ -13,7 +13,7 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { userRole, user } = useAuth();
-  const { trips, earnings, allDriversList, messages, platformTotalEarnings, allDriversEarnings } = useApp();
+  const { trips, earnings, allDriversList, messages, platformTotalEarnings, allDriversEarnings, tripApplications } = useApp();
 
   const availableCount = trips.filter(t => t.status === 'available').length;
   const activeCount = trips.filter(t => t.status === 'accepted' || t.status === 'inProgress').length;
@@ -24,6 +24,7 @@ export default function AdminDashboard() {
   const totalRevenue = earnings.reduce((s, e) => s + Number(e.total_amount), 0);
   const pendingDrivers = allDriversList.filter(d => d.approval_status === 'pending').length;
   const unreadMsgs = messages.filter(m => m.sender_role === 'driver' && !m.is_read).length;
+  const pendingApplications = tripApplications.filter(a => a.status === 'pending').length;
 
   const sections = [
     {
@@ -41,7 +42,7 @@ export default function AdminDashboard() {
       icon: 'local-shipping',
       color: '#22C55E',
       items: [
-        { label: 'إدارة الكباتن', icon: 'people', route: '/(tabs)/trips', badge: totalDrivers },
+        { label: 'إدارة الكباتن', icon: 'people', route: '/admin/(tabs)/drivers', badge: totalDrivers },
         { label: 'طلبات التسجيل', icon: 'how-to-reg', route: '/admin/approvals', badge: pendingDrivers },
         { label: 'المحادثات', icon: 'chat', route: '/admin/chat', badge: unreadMsgs },
         { label: 'المكافآت', icon: 'emoji-events', route: '/admin/bonuses', badge: 0 },
@@ -62,7 +63,7 @@ export default function AdminDashboard() {
       icon: 'map',
       color: '#3B82F6',
       items: [
-        { label: 'متابعة المشاوير', icon: 'route', route: '/admin/(tabs)/trips', badge: availableCount },
+        { label: 'متابعة المشاوير', icon: 'route', route: '/admin/(tabs)/trips', badge: pendingApplications > 0 ? pendingApplications : availableCount },
         { label: 'مشوار جديد', icon: 'add-circle', route: '/admin/trip-form', badge: 0 },
         { label: 'التسعير الديناميكي', icon: 'attach-money', route: '/admin/pricing', badge: 0 },
         { label: 'إيصالات المحفظة', icon: 'account-balance-wallet', route: '/admin/wallet-receipts', badge: 0 },

@@ -23,6 +23,9 @@ interface AppContextType {
   myTrips: Trip[];
   activeTrips: Trip[];
   completedTrips: Trip[];
+  clientTrips: Trip[];
+  clientActiveTrips: Trip[];
+  clientCompletedTrips: Trip[];
   loadTrips: () => Promise<void>;
   startTrip: (tripId: string) => Promise<void>;
   completeTrip: (tripId: string) => Promise<void>;
@@ -204,11 +207,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAllWalletTransactions(allTxs);
   }, []);
 
-  // For drivers: filter out confirmed/agreed trips assigned to OTHER drivers
+  // For drivers: show available trips + their own active trips
+  // Filter out confirmed/agreed trips assigned to OTHER drivers
   const availableTrips = trips.filter(t => {
     if (t.status === 'available') return true;
     return false;
   });
+
+  // Client trips — trips created by the current user (client portal)
+  const clientTrips = trips.filter(t => t.created_by === userId);
+  const clientActiveTrips = clientTrips.filter(t => ['available', 'accepted', 'inProgress', 'confirmed', 'agreed'].includes(t.status));
+  const clientCompletedTrips = clientTrips.filter(t => t.status === 'completed');
 
   const myTrips = trips.filter(t => t.driver_id === userId);
   const activeTrips = myTrips.filter(t => t.status === 'accepted' || t.status === 'inProgress' || t.status === 'agreed' || t.status === 'confirmed');
@@ -412,29 +421,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { error: result.error };
   }, [userId]);
 
-  // Direct trip acceptance — NO wallet balance check
+  // Driver requests trip — sends request for admin/client approval (no direct acceptance)
   const acceptTripDirectly = useCallback(async (tripId: string) => {
     if (!userId || !profile) return { error: 'غير مسجل الدخول' };
     const trip = trips.find(t => t.id === tripId);
     if (!trip) return { error: 'المشوار غير موجود' };
     if (trip.status !== 'available') return { error: 'المشوار محجوز بالفعل' };
 
-    // Assign the trip directly — no wallet check
-    const tripResult = await api.updateTrip(tripId, { status: 'accepted', driver_id: userId });
-    if (tripResult.error) return { error: tripResult.error };
+    // Create a trip application (request) — admin must approve before assignment
+    const existingApp = tripApplications.find(a => a.trip_id === tripId && a.driver_id === userId);
+    if (existingApp) return { error: 'لقد تقدمت لهذا المشوار مسبقاً' };
 
-    setTrips(prev => prev.map(t => t.id === tripId ? { ...t, status: 'accepted' as const, driver_id: userId } : t));
-    await api.updateUserProfile(userId, { status: 'onTrip' });
+    const result = await api.applyForTrip({
+      trip_id: tripId,
+      driver_id: userId,
+      driver_name: profile.full_name || profile.username || 'سائق',
+    });
+    if (result.error) return { error: result.error };
+    if (result.data) {
+      setTripApplications(prev => [...prev, result.data!]);
+    }
 
-    // Notify admins
+    // Notify admins about the new application
     await api.notifyAdmins(
-      'تم حجز مشوار',
-      `${profile.full_name || profile.username} حجز المشوار: ${trip.pickup_location} \u2192 ${trip.dropoff_location}`,
-      'trip_accepted'
+      'طلب مشوار جديد',
+      `${profile.full_name || profile.username} طلب الموافقة على المشوار: ${trip.pickup_location} \u2192 ${trip.dropoff_location}`,
+      'trip_application'
     );
 
+    // Also notify the client who created the trip (if exists)
+    if (trip.created_by && trip.created_by !== userId) {
+      await api.createNotification({
+        user_id: trip.created_by,
+        title: 'طلب سائق للمشوار',
+        body: `السائق ${profile.full_name || profile.username} يطلب الموافقة على مشوارك: ${trip.pickup_location} \u2192 ${trip.dropoff_location}`,
+        type: 'trip_application',
+        is_read: false,
+      });
+      api.sendPushToUser(trip.created_by, 'طلب سائق للمشوار', `${profile.full_name || profile.username} يطلب الموافقة`);
+    }
+
     return { error: null };
-  }, [userId, profile, trips]);
+  }, [userId, profile, trips, tripApplications]);
 
   const assignDriverToTrip = useCallback(async (tripId: string, driverId: string, applicationId: string) => {
     const appResult = await api.updateApplicationStatus(applicationId, 'accepted');
@@ -563,7 +591,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      profile, trips, availableTrips, myTrips, activeTrips, completedTrips,
+      profile, trips, availableTrips, myTrips, activeTrips, completedTrips, clientTrips, clientActiveTrips, clientCompletedTrips,
       loadTrips, startTrip, completeTrip, cancelTrip,
       createTrip: createTripAction, updateTrip: updateTripAction, deleteTrip: deleteTripAction, archiveTrip, confirmTrip, getTripById, logAuditAction,
       earnings, totalEarnings, todayEarnings, weekEarnings, monthEarnings, platformTotalEarnings, allDriversEarnings,

@@ -52,16 +52,16 @@ export default function TripDetailScreen() {
   const isConfirmed = (trip.status === 'confirmed' || trip.status === 'agreed') && isMyTrip;
   const tripNum = formatTripNumber(trip.trip_number);
 
-  const handleAcceptTrip = async () => {
-    showAlert(t.acceptTrip, `${t.tripConfirmAccept}\n${t.netEarning}: ${driverEarning.toFixed(0)} ${t.currency}`, [
+  const handleRequestTrip = async () => {
+    showAlert('طلب الموافقة', `سيتم إرسال طلبك للإدارة/العميل للموافقة عليه.\n${t.netEarning}: ${driverEarning.toFixed(0)} ${t.currency}`, [
       { text: t.cancel, style: 'cancel' },
-      { text: t.acceptTrip, onPress: async () => {
+      { text: 'تقديم طلب', onPress: async () => {
         setAccepting(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         const result = await acceptTripDirectly(trip.id);
         setAccepting(false);
         if (result.error) { showAlert(t.error, result.error); }
-        else { showAlert(t.tripBooked, t.tripBookedMsg); }
+        else { showAlert('تم تقديم الطلب', 'سيتم إشعارك عند موافقة الإدارة أو العميل على طلبك.'); }
       }},
     ]);
   };
@@ -188,11 +188,20 @@ export default function TripDetailScreen() {
       </ScrollView>
 
       {/* Bottom actions */}
-      {isDriver && trip.status === 'available' ? (
+      {isDriver && trip.status === 'available' && !hasApplied ? (
         <Animated.View entering={FadeInUp.duration(400)} style={[styles.bottomActions, { paddingBottom: insets.bottom + 16 }]}>
-          <Pressable onPress={handleAcceptTrip} disabled={accepting} style={[styles.actionBtn, styles.applyBtn, accepting && { opacity: 0.6 }]}>
-            {accepting ? <ActivityIndicator color="#FFF" /> : (<><MaterialIcons name="check-circle" size={20} color="#FFF" /><Text style={styles.actionBtnText}>{t.acceptTrip}</Text></>)}
+          <Pressable onPress={handleRequestTrip} disabled={accepting} style={[styles.actionBtn, styles.applyBtn, accepting && { opacity: 0.6 }]}>
+            {accepting ? <ActivityIndicator color="#FFF" /> : (<><MaterialIcons name="send" size={20} color="#FFF" /><Text style={styles.actionBtnText}>طلب الموافقة على المشوار</Text></>)}
           </Pressable>
+        </Animated.View>
+      ) : null}
+
+      {isDriver && trip.status === 'available' && hasApplied ? (
+        <Animated.View entering={FadeInUp.duration(400)} style={[styles.bottomActions, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.actionBtn, { backgroundColor: theme.warning + '20', borderWidth: 1.5, borderColor: theme.warning + '40' }]}>
+            <MaterialIcons name="hourglass-top" size={20} color={theme.warning} />
+            <Text style={[styles.actionBtnText, { color: theme.warning }]}>بانتظار موافقة الإدارة</Text>
+          </View>
         </Animated.View>
       ) : null}
 

@@ -15,9 +15,9 @@ export default function ClientProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { trips, notifications } = useApp();
+  const { clientTrips, notifications } = useApp();
 
-  const myTripsCount = trips.filter(t => t.created_by === user?.id).length;
+  const myTripsCount = clientTrips.length;
 
   const menuItems = [
     { id: '1', icon: 'person', label: 'تعديل الملف الشخصي', route: '/edit-profile', color: '#8B5CF6' },

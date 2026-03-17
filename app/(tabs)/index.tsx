@@ -19,7 +19,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { profile, availableTrips, activeTrips, completedTrips,
     todayEarnings, unreadNotifications, unreadMessages,
-    setDriverStatus, isDataLoading, getMyApplication, wallet, trips,
+    setDriverStatus, isDataLoading, getMyApplication, wallet, trips, tripApplications,
   } = useApp();
   const { t, tripStatus, tripType } = useLanguage();
 
@@ -30,6 +30,7 @@ export default function HomeScreen() {
     return false;
   });
   const driverAvailable = driverVisibleTrips.filter(trip => trip.status === 'available');
+  const myPendingRequests = tripApplications.filter(a => a.driver_id === userId && a.status === 'pending').length;
 
   const isAvailable = profile?.status === 'available';
   const displayName = profile?.full_name || profile?.username || user?.email?.split('@')[0] || 'كابتن';
@@ -88,15 +89,15 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>{t.availableTripsCount}</Text>
           </View>
           <View style={styles.statCard}>
+            <MaterialIcons name="hourglass-top" size={24} color={theme.warning} />
+            <Text style={[styles.statValue, { color: theme.warning }]}>{myPendingRequests}</Text>
+            <Text style={styles.statLabel}>بانتظار الموافقة</Text>
+          </View>
+          <View style={styles.statCard}>
             <MaterialIcons name="schedule" size={24} color={theme.statusInProgress} />
             <Text style={[styles.statValue, { color: theme.statusInProgress }]}>{activeTrips.length}</Text>
             <Text style={styles.statLabel}>{t.activeTrips}</Text>
           </View>
-          <Pressable onPress={() => router.push('/wallet')} style={styles.statCard}>
-            <MaterialIcons name="account-balance-wallet" size={24} color={theme.accent} />
-            <Text style={[styles.statValue, { color: theme.accent }]}>{Number(wallet?.balance || 0).toFixed(0)}</Text>
-            <Text style={styles.statLabel}>{t.wallet}</Text>
-          </Pressable>
         </Animated.View>
 
         {/* Active Trips */}
