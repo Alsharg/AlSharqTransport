@@ -325,13 +325,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
   }, []);
 
-  const toggleDriverActive = useCallback(async (driverId: string) => {
-    const driver = allDriversList.find(d => d.id === driverId);
-    if (!driver) return;
-    await api.updateUserProfile(driverId, { is_active: !driver.is_active, status: driver.is_active ? 'unavailable' : 'available' });
-    setAllDriversList(prev => prev.map(d => d.id === driverId ? { ...d, is_active: !d.is_active } : d));
-  }, [allDriversList]);
-
   const logAuditAction = useCallback(async (action: string, targetType: string, targetId?: string, details?: Record<string, any>) => {
     if (!userId || !profile) return;
     await api.createAuditLog({
@@ -341,6 +334,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       action, target_type: targetType, target_id: targetId, details,
     });
   }, [userId, profile]);
+
+  const toggleDriverActive = useCallback(async (driverId: string) => {
+    const driver = allDriversList.find(d => d.id === driverId);
+    if (!driver) return;
+    await api.updateUserProfile(driverId, { is_active: !driver.is_active, status: driver.is_active ? 'unavailable' : 'available' });
+    setAllDriversList(prev => prev.map(d => d.id === driverId ? { ...d, is_active: !d.is_active } : d));
+  }, [allDriversList]);
 
   const approveDriver = useCallback(async (driverId: string) => {
     const driver = allDriversList.find(d => d.id === driverId);
