@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -10,8 +10,6 @@ import { theme, typography } from '../constants/theme';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../hooks/useAuth';
 import { getStatusColor, getTripStatusLabel, formatTripNumber } from '../services/types';
-
-const { width } = Dimensions.get('window');
 
 export default function LiveTrackingScreen() {
   const router = useRouter();
@@ -27,7 +25,6 @@ export default function LiveTrackingScreen() {
   const isDriver = userRole === 'driver';
   const driverProfile = allDriversList.find(d => d.id === trip?.driver_id);
 
-  // Request location permission and start tracking
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval>;
 
@@ -43,19 +40,15 @@ export default function LiveTrackingScreen() {
 
           if (isDriver && mapRef.current) {
             mapRef.current.animateToRegion({
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-              latitudeDelta: 0.02,
-              longitudeDelta: 0.02,
+              latitude: loc.coords.latitude, longitude: loc.coords.longitude,
+              latitudeDelta: 0.02, longitudeDelta: 0.02,
             }, 500);
           }
-        } catch (e) {
-          console.error('Location error:', e);
-        }
+        } catch (e) { console.error('Location error:', e); }
       };
 
       await updateLocation();
-      intervalId = setInterval(updateLocation, 10000); // Update every 10 seconds
+      intervalId = setInterval(updateLocation, 10000);
     };
 
     startTracking();
@@ -65,8 +58,7 @@ export default function LiveTrackingScreen() {
   const defaultRegion = {
     latitude: driverLocation?.latitude || trip?.pickup_lat || 24.7136,
     longitude: driverLocation?.longitude || trip?.pickup_lng || 46.6753,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
+    latitudeDelta: 0.05, longitudeDelta: 0.05,
   };
 
   const statusColor = trip ? getStatusColor(trip.status) : theme.primary;
@@ -82,7 +74,6 @@ export default function LiveTrackingScreen() {
         {tripNum ? <View style={styles.tripNumBadge}><Text style={styles.tripNumText}>{tripNum}</Text></View> : <View style={{ width: 44 }} />}
       </View>
 
-      {/* Map */}
       <View style={styles.mapContainer}>
         <MapView
           ref={mapRef}
@@ -92,7 +83,6 @@ export default function LiveTrackingScreen() {
           showsUserLocation={isDriver}
           showsMyLocationButton={false}
         >
-          {/* Driver location marker */}
           {driverLocation ? (
             <Marker coordinate={driverLocation} title={isDriver ? 'موقعي' : (driverProfile?.full_name || 'السائق')}>
               <View style={styles.driverMarker}>
@@ -101,7 +91,6 @@ export default function LiveTrackingScreen() {
             </Marker>
           ) : null}
 
-          {/* Pickup marker */}
           {trip?.pickup_lat && trip?.pickup_lng ? (
             <Marker coordinate={{ latitude: trip.pickup_lat, longitude: trip.pickup_lng }} title="نقطة الانطلاق">
               <View style={[styles.locationMarker, { backgroundColor: theme.success }]}>
@@ -110,7 +99,6 @@ export default function LiveTrackingScreen() {
             </Marker>
           ) : null}
 
-          {/* Dropoff marker */}
           {trip?.dropoff_lat && trip?.dropoff_lng ? (
             <Marker coordinate={{ latitude: trip.dropoff_lat, longitude: trip.dropoff_lng }} title="نقطة الوصول">
               <View style={[styles.locationMarker, { backgroundColor: theme.error }]}>
@@ -120,7 +108,6 @@ export default function LiveTrackingScreen() {
           ) : null}
         </MapView>
 
-        {/* My Location button */}
         <Pressable
           onPress={() => {
             if (driverLocation && mapRef.current) {
@@ -133,7 +120,6 @@ export default function LiveTrackingScreen() {
         </Pressable>
       </View>
 
-      {/* Trip Info Panel */}
       {trip ? (
         <Animated.View entering={FadeInDown.duration(400)} style={styles.infoPanel}>
           <View style={styles.infoPanelHeader}>
@@ -145,43 +131,26 @@ export default function LiveTrackingScreen() {
           </View>
 
           <View style={styles.routeInfo}>
-            <View style={styles.routeRow}>
-              <View style={[styles.routeDot, { backgroundColor: theme.success }]} />
-              <Text style={styles.routeText} numberOfLines={1}>{trip.home_location || trip.pickup_location}</Text>
-            </View>
+            <View style={styles.routeRow}><View style={[styles.routeDot, { backgroundColor: theme.success }]} /><Text style={styles.routeText} numberOfLines={1}>{trip.home_location || trip.pickup_location}</Text></View>
             <View style={styles.routeConnector} />
-            <View style={styles.routeRow}>
-              <View style={[styles.routeDot, { backgroundColor: theme.error }]} />
-              <Text style={styles.routeText} numberOfLines={1}>{trip.work_location || trip.dropoff_location}</Text>
-            </View>
+            <View style={styles.routeRow}><View style={[styles.routeDot, { backgroundColor: theme.error }]} /><Text style={styles.routeText} numberOfLines={1}>{trip.work_location || trip.dropoff_location}</Text></View>
           </View>
 
           {!isDriver && driverProfile ? (
             <View style={styles.driverInfo}>
-              <View style={styles.driverAvatar}>
-                <MaterialIcons name="person" size={20} color={theme.primary} />
-              </View>
+              <View style={styles.driverAvatar}><MaterialIcons name="person" size={20} color={theme.primary} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.driverName}>{driverProfile.full_name || driverProfile.username}</Text>
                 <Text style={styles.driverCode}>{driverProfile.driver_code}</Text>
               </View>
-              <View style={styles.ratingBadge}>
-                <MaterialIcons name="star" size={14} color="#FBBF24" />
-                <Text style={styles.ratingText}>{driverProfile.rating?.toFixed(1)}</Text>
-              </View>
+              <View style={styles.ratingBadge}><MaterialIcons name="star" size={14} color="#FBBF24" /><Text style={styles.ratingText}>{driverProfile.rating?.toFixed(1)}</Text></View>
             </View>
           ) : null}
 
           {!locationPermission ? (
-            <View style={styles.permissionNote}>
-              <MaterialIcons name="location-off" size={16} color={theme.warning} />
-              <Text style={styles.permissionText}>يرجى السماح بالوصول للموقع لتفعيل التتبع</Text>
-            </View>
+            <View style={styles.permissionNote}><MaterialIcons name="location-off" size={16} color={theme.warning} /><Text style={styles.permissionText}>يرجى السماح بالوصول للموقع لتفعيل التتبع</Text></View>
           ) : (
-            <View style={styles.trackingActive}>
-              <View style={styles.pulsingDot} />
-              <Text style={styles.trackingText}>التتبع مباشر • يتحدث كل 10 ثوانٍ</Text>
-            </View>
+            <View style={styles.trackingActive}><View style={styles.pulsingDot} /><Text style={styles.trackingText}>التتبع مباشر - يتحدث كل 10 ثوانٍ</Text></View>
           )}
         </Animated.View>
       ) : null}
@@ -196,38 +165,31 @@ const styles = StyleSheet.create({
   headerTitle: { ...typography.subtitle, writingDirection: 'rtl' },
   tripNumBadge: { backgroundColor: theme.primary + '25', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   tripNumText: { fontSize: 12, fontWeight: '700', color: theme.primaryGlow },
-
   mapContainer: { flex: 1, position: 'relative' },
   map: { flex: 1 },
   myLocationBtn: { position: 'absolute', bottom: 16, right: 16, width: 48, height: 48, borderRadius: 24, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border, ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 }, android: { elevation: 4 } }) },
-
   driverMarker: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#FFF' },
   locationMarker: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' },
-
   infoPanel: { backgroundColor: theme.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, borderTopWidth: 1, borderColor: theme.border },
   infoPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  statusChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radiusFull },
+  statusChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 13, fontWeight: '700' },
   infoPrice: { fontSize: 22, fontWeight: '700', color: theme.accent },
-
   routeInfo: { marginBottom: 16 },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   routeDot: { width: 10, height: 10, borderRadius: 5 },
   routeText: { fontSize: 14, fontWeight: '500', color: theme.textSecondary, flex: 1, writingDirection: 'rtl', textAlign: 'right' },
   routeConnector: { width: 2, height: 16, backgroundColor: theme.border, marginLeft: 4, marginVertical: 2 },
-
   driverInfo: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 14, borderTopWidth: 1, borderTopColor: theme.borderLight, marginBottom: 12 },
   driverAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.primary + '15', alignItems: 'center', justifyContent: 'center' },
   driverName: { fontSize: 14, fontWeight: '600', color: theme.textPrimary, writingDirection: 'rtl', textAlign: 'right' },
   driverCode: { fontSize: 12, fontWeight: '600', color: theme.primary, writingDirection: 'rtl', textAlign: 'right' },
   ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#78350F', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   ratingText: { fontSize: 13, fontWeight: '700', color: '#FBBF24' },
-
-  permissionNote: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: theme.warningLight, borderRadius: theme.radiusMedium },
+  permissionNote: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: theme.warningLight, borderRadius: 12 },
   permissionText: { fontSize: 12, fontWeight: '500', color: theme.warning, writingDirection: 'rtl', flex: 1 },
-
-  trackingActive: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: theme.successLight, borderRadius: theme.radiusMedium },
+  trackingActive: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: theme.successLight, borderRadius: 12 },
   pulsingDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.success },
   trackingText: { fontSize: 12, fontWeight: '600', color: theme.success, writingDirection: 'rtl' },
 });
