@@ -83,6 +83,7 @@ interface AppContextType {
   rejectCommission: (paymentId: string) => Promise<{ error: string | null }>;
   setDriverStatus: (status: string) => Promise<void>;
   isDataLoading: boolean;
+  logAuditAction: (action: string, targetType: string, targetId?: string, details?: Record<string, any>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -139,6 +140,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loadAllData();
       registerForPushNotifications(userId);
     }
+  }, [userId]);
+
+  // Auto-refresh polling every 30 seconds
+  useEffect(() => {
+    if (!userId) return;
+    const interval = setInterval(() => {
+      loadTrips();
+      api.fetchNotifications(userId).then(setNotifications);
+      api.fetchMessages().then(setMessages);
+    }, 30000);
+    return () => clearInterval(interval);
   }, [userId]);
 
   const loadAllData = useCallback(async () => {
@@ -287,7 +299,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (result.error) return { error: result.error };
     setTrips(prev => prev.map(t => t.id === tripId ? { ...t, status: 'confirmed' as const, driver_id: driverId } : t));
 
-    // Notify the assigned driver
     const trip = trips.find(t => t.id === tripId);
     if (trip) {
       await api.createNotification({
@@ -298,8 +309,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       api.sendPushToUser(driverId, 'تم الاتفاق على مشوار', `المشوار: ${trip.pickup_location} \u2192 ${trip.dropoff_location}`);
     }
+    logAuditAction('confirm_trip', 'trip', tripId, { driver_id: driverId, price: trip?.price });
     return { error: null };
-  }, [trips]);
+  }, [trips, logAuditAction]);
 
   const sendMessageAction = useCallback(async (content: string) => {
     if (!userId || !profile) return;
@@ -320,19 +332,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAllDriversList(prev => prev.map(d => d.id === driverId ? { ...d, is_active: !d.is_active } : d));
   }, [allDriversList]);
 
+  const logAuditAction = useCallback(async (action: string, targetType: string, targetId?: string, details?: Record<string, any>) => {
+    if (!userId || !profile) return;
+    await api.createAuditLog({
+      actor_id: userId,
+      actor_name: profile.full_name || profile.username || 'مستخدم',
+      actor_role: profile.role,
+      action, target_type: targetType, target_id: targetId, details,
+    });
+  }, [userId, profile]);
+
   const approveDriver = useCallback(async (driverId: string) => {
+    const driver = allDriversList.find(d => d.id === driverId);
     await api.updateUserProfile(driverId, { approval_status: 'approved', is_active: true });
     setAllDriversList(prev => prev.map(d => d.id === driverId ? { ...d, approval_status: 'approved' as const, is_active: true } : d));
     await api.createNotification({ user_id: driverId, title: 'تم قبول طلبك', body: 'تم قبول طلب التسجيل. يمكنك الآن تسجيل الدخول واستقبال المشاوير.', type: 'approval', is_read: false });
     api.sendPushToUser(driverId, 'تم قبول طلبك', 'يمكنك الآن تسجيل الدخول واستقبال المشاوير.');
     await api.getOrCreateWallet(driverId);
-  }, []);
+    logAuditAction('approve_driver', 'driver', driverId, { driver_name: driver?.full_name });
+  }, [allDriversList, logAuditAction]);
 
   const rejectDriver = useCallback(async (driverId: string) => {
+    const driver = allDriversList.find(d => d.id === driverId);
     await api.updateUserProfile(driverId, { approval_status: 'rejected', is_active: false });
     setAllDriversList(prev => prev.map(d => d.id === driverId ? { ...d, approval_status: 'rejected' as const, is_active: false } : d));
     await api.createNotification({ user_id: driverId, title: 'تم رفض طلبك', body: 'تم رفض طلب التسجيل. تواصل مع الإدارة لمزيد من المعلومات.', type: 'approval', is_read: false });
-  }, []);
+    logAuditAction('reject_driver', 'driver', driverId, { driver_name: driver?.full_name });
+  }, [allDriversList, logAuditAction]);
 
   const addAnnouncement = useCallback(async (ann: any) => {
     const result = await api.createAnnouncement({ ...ann, created_by: userId });
@@ -469,8 +495,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await api.createNotification({ user_id: payment.driver_id, title: 'تم تأكيد استلام العمولة', body: 'تم تأكيد استلام العمولة بنجاح.', type: 'general', is_read: false });
       api.sendPushToUser(payment.driver_id, 'تم تأكيد استلام العمولة', 'تم تأكيد استلام العمولة بنجاح.');
     }
+    logAuditAction('confirm_commission', 'commission', paymentId, { driver_id: payment?.driver_id, amount: payment?.amount });
     return { error: null };
-  }, [userId, commissionPayments]);
+  }, [userId, commissionPayments, logAuditAction]);
 
   const rejectCommission = useCallback(async (paymentId: string) => {
     if (!userId) return { error: 'غير مسجل الدخول' };
@@ -512,8 +539,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAllWalletTransactions(prev => prev.map(t => t.id === txId ? { ...t, status: 'approved' as const } : t));
     await api.createNotification({ user_id: driverId, title: 'تم اعتماد شحن المحفظة', body: `تم اعتماد شحن المحفظة بمبلغ ${amount} ر.س. رصيدك الحالي محدث.`, type: 'general', is_read: false });
     api.sendPushToUser(driverId, 'تم اعتماد شحن المحفظة', `تم اعتماد شحن المحفظة بمبلغ ${amount} ر.س.`);
+    logAuditAction('approve_topup', 'wallet', txId, { driver_id: driverId, amount });
     return { error: null };
-  }, [userId]);
+  }, [userId, logAuditAction]);
 
   const rejectTopUp = useCallback(async (txId: string) => {
     if (!userId) return { error: 'غير مسجل الدخول' };
@@ -537,7 +565,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       profile, trips, availableTrips, myTrips, activeTrips, completedTrips,
       loadTrips, startTrip, completeTrip, cancelTrip,
-      createTrip: createTripAction, updateTrip: updateTripAction, deleteTrip: deleteTripAction, archiveTrip, confirmTrip, getTripById,
+      createTrip: createTripAction, updateTrip: updateTripAction, deleteTrip: deleteTripAction, archiveTrip, confirmTrip, getTripById, logAuditAction,
       earnings, totalEarnings, todayEarnings, weekEarnings, monthEarnings, platformTotalEarnings, allDriversEarnings,
       messages, sendMessage: sendMessageAction, unreadMessages, loadMessages,
       notifications, unreadNotifications, markNotificationRead,

@@ -34,6 +34,9 @@ export default function RootLayout() {
               <Stack.Screen name="client-register" options={{ animation: 'slide_from_bottom' }} />
               <Stack.Screen name="edit-profile" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
               <Stack.Screen name="wallet" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="driver-card" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="rate-trip" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="live-tracking" options={{ animation: 'slide_from_bottom' }} />
             </Stack>
           </AppProvider>
           </LanguageProvider>

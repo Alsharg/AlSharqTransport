@@ -54,6 +54,7 @@ export default function MoreScreen() {
   const accountSettings = [
     { id: '1', icon: 'person', label: t.driverProfile, value: profile?.full_name || '', onPress: () => router.push('/edit-profile'), showChevron: true },
     { id: '2', icon: 'directions-car', label: t.vehicleInfo, value: profile?.vehicle_type || '', onPress: () => router.push('/edit-profile'), showChevron: true },
+    { id: 'dcard', icon: 'badge', label: 'البطاقة الرقمية', value: profile?.driver_code || '', onPress: () => router.push('/driver-card'), showChevron: true, color: theme.accent },
     { id: '3', icon: 'badge', label: t.drivingLicense, value: profile?.license_number || '', onPress: () => {}, showChevron: true },
   ];
 

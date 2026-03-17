@@ -91,6 +91,11 @@ export default function TripDetailScreen() {
         <Pressable onPress={() => router.push({ pathname: '/trip-map', params: { id: trip.id } })} style={styles.mapIconBtn}>
           <MaterialIcons name="map" size={22} color={theme.primary} />
         </Pressable>
+        {(trip.status === 'inProgress' || trip.status === 'accepted' || trip.status === 'confirmed') ? (
+          <Pressable onPress={() => router.push({ pathname: '/live-tracking', params: { id: trip.id } })} style={[styles.mapIconBtn, { backgroundColor: theme.success + '15' }]}>
+            <MaterialIcons name="gps-fixed" size={22} color={theme.success} />
+          </Pressable>
+        ) : null}
       </Animated.View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 140 }} showsVerticalScrollIndicator={false}>
@@ -208,7 +213,13 @@ export default function TripDetailScreen() {
 
       {trip.status === 'completed' ? (
         <Animated.View entering={FadeInUp.duration(400)} style={[styles.completedBanner, { paddingBottom: insets.bottom + 16 }]}>
-          <MaterialIcons name="check-circle" size={24} color={theme.success} /><Text style={styles.completedText}>تم إكمال المشوار بنجاح</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <MaterialIcons name="check-circle" size={24} color={theme.success} /><Text style={styles.completedText}>تم إكمال المشوار بنجاح</Text>
+          </View>
+          <Pressable onPress={() => router.push({ pathname: '/rate-trip', params: { id: trip.id } })} style={styles.rateBtn}>
+            <MaterialIcons name="star" size={20} color="#FFF" />
+            <Text style={styles.rateBtnText}>قيّم المشوار</Text>
+          </Pressable>
         </Animated.View>
       ) : null}
     </SafeAreaView>
@@ -270,8 +281,10 @@ const styles = StyleSheet.create({
   startBtn: { backgroundColor: theme.statusInProgress },
   completeBtn: { backgroundColor: theme.success },
   cancelBtn: { backgroundColor: theme.errorLight, borderWidth: 1.5, borderColor: theme.error },
-  completedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingTop: 16, paddingHorizontal: 16, backgroundColor: theme.success + '15', borderTopWidth: 1, borderTopColor: theme.success + '30' },
+  completedBanner: { alignItems: 'center', paddingTop: 16, paddingHorizontal: 16, backgroundColor: theme.success + '15', borderTopWidth: 1, borderTopColor: theme.success + '30' },
   completedText: { fontSize: 16, fontWeight: '600', color: theme.success, writingDirection: 'rtl' },
+  rateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FBBF24', paddingVertical: 14, paddingHorizontal: 32, borderRadius: theme.radiusMedium },
+  rateBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
   errorText: { ...typography.subtitle, textAlign: 'center', marginTop: 16, writingDirection: 'rtl' },
   backBtn: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: theme.primary, borderRadius: theme.radiusMedium },
   backBtnText: { color: '#FFF', fontSize: 15, fontWeight: '600' },

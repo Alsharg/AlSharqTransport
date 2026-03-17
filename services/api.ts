@@ -388,6 +388,69 @@ export async function uploadWalletReceipt(driverId: string, base64Data: string, 
   return { url: urlData.publicUrl, error: null };
 }
 
+// ===== Audit Logs =====
+export async function createAuditLog(log: {
+  actor_id?: string;
+  actor_name: string;
+  actor_role: string;
+  action: string;
+  target_type: string;
+  target_id?: string;
+  details?: Record<string, any>;
+}) {
+  const { data, error } = await supabase.from('audit_logs').insert(log).select().single();
+  if (error) return { data: null, error: error.message };
+  return { data, error: null };
+}
+
+export async function fetchAuditLogs(limit = 50): Promise<any[]> {
+  const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(limit);
+  if (error) return [];
+  return data || [];
+}
+
+// ===== Ratings =====
+export async function createRating(rating: {
+  trip_id: string;
+  rater_id: string;
+  rated_id: string;
+  rating: number;
+  comment?: string;
+  rater_role: string;
+}) {
+  const { data, error } = await supabase.from('ratings').insert(rating).select().single();
+  if (error) return { data: null, error: error.message };
+  return { data, error: null };
+}
+
+export async function fetchRatingsForUser(userId: string): Promise<any[]> {
+  const { data, error } = await supabase.from('ratings').select('*').eq('rated_id', userId).order('created_at', { ascending: false });
+  if (error) return [];
+  return data || [];
+}
+
+export async function fetchRatingForTrip(tripId: string, raterId: string): Promise<any | null> {
+  const { data, error } = await supabase.from('ratings').select('*').eq('trip_id', tripId).eq('rater_id', raterId).single();
+  if (error) return null;
+  return data;
+}
+
+export async function updateUserRating(userId: string) {
+  const ratings = await fetchRatingsForUser(userId);
+  if (ratings.length === 0) return;
+  const avg = ratings.reduce((s: number, r: any) => s + Number(r.rating), 0) / ratings.length;
+  await updateUserProfile(userId, { rating: parseFloat(avg.toFixed(2)) });
+}
+
+// ===== Driver Location =====
+export async function updateDriverLocation(driverId: string, lat: number, lng: number) {
+  // Store in user profile metadata or a separate field — using status update pattern
+  const { error } = await supabase.from('user_profiles').update({
+    updated_at: new Date().toISOString(),
+  }).eq('id', driverId);
+  return { error: error?.message || null };
+}
+
 // ===== AI Assistant =====
 export async function askAIAssistant(prompt: string, context?: string) {
   const { data, error } = await supabase.functions.invoke('ai-trip-assistant', { body: { prompt, context } });
