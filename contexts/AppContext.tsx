@@ -87,6 +87,8 @@ interface AppContextType {
   setDriverStatus: (status: string) => Promise<void>;
   isDataLoading: boolean;
   logAuditAction: (action: string, targetType: string, targetId?: string, details?: Record<string, any>) => Promise<void>;
+  handleNotificationAction: (notifId: string, action: string, data?: any) => Promise<void>;
+  calculateTripPrice: (tripType: string, city?: string, passengers?: number) => number;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -206,6 +208,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const allTxs = await api.fetchAllWalletTransactions();
     setAllWalletTransactions(allTxs);
   }, []);
+
+  const handleNotificationAction = useCallback(async (notifId: string, action: string, data?: any) => {
+    if (action === 'approve_driver_for_trip' && data?.tripId && data?.driverId) {
+      const result = await confirmTrip(data.tripId, data.driverId);
+      if (!result.error) {
+        await api.createNotification({ user_id: data.driverId, title: 'تمت الموافقة على طلبك', body: 'وافق العميل على طلبك للمشوار. يمكنك البدء الآن.', type: 'trip_confirmed', is_read: false });
+      }
+    } else if (action === 'reject_driver_for_trip' && data?.applicationId) {
+      await api.updateApplicationStatus(data.applicationId, 'rejected');
+      setTripApplications(prev => prev.map(a => a.id === data.applicationId ? { ...a, status: 'rejected' as const } : a));
+      if (data.driverId) {
+        await api.createNotification({ user_id: data.driverId, title: 'تم رفض طلبك', body: 'رفض العميل طلبك للمشوار. يمكنك التقدم لمشاوير أخرى.', type: 'trip_rejected', is_read: false });
+      }
+    }
+  }, [confirmTrip]);
+
+  const [pricingConfigs, setPricingConfigs] = useState<any[]>([]);
+  useEffect(() => { api.fetchPricingConfigs().then(setPricingConfigs); }, []);
+
+  const calculateTripPrice = useCallback((tripType: string, city?: string, passengers?: number): number => {
+    const configs = pricingConfigs.filter(c => c.is_active);
+    let config = configs.find(c => c.trip_type === tripType && c.city && city && c.city.toLowerCase() === city.toLowerCase());
+    if (!config) config = configs.find(c => c.trip_type === tripType);
+    if (!config) config = configs[0];
+    if (!config) return 0;
+    let price = Number(config.base_price) * Number(config.surge_multiplier);
+    if (passengers && passengers > 1) price += (passengers - 1) * Number(config.price_per_km);
+    return Math.max(price, Number(config.min_price));
+  }, [pricingConfigs]);
 
   // For drivers: show available trips + their own active trips
   // Filter out confirmed/agreed trips assigned to OTHER drivers
@@ -593,7 +624,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       profile, trips, availableTrips, myTrips, activeTrips, completedTrips, clientTrips, clientActiveTrips, clientCompletedTrips,
       loadTrips, startTrip, completeTrip, cancelTrip,
-      createTrip: createTripAction, updateTrip: updateTripAction, deleteTrip: deleteTripAction, archiveTrip, confirmTrip, getTripById, logAuditAction,
+      createTrip: createTripAction, updateTrip: updateTripAction, deleteTrip: deleteTripAction, archiveTrip, confirmTrip, getTripById, logAuditAction, handleNotificationAction, calculateTripPrice,
       earnings, totalEarnings, todayEarnings, weekEarnings, monthEarnings, platformTotalEarnings, allDriversEarnings,
       messages, sendMessage: sendMessageAction, unreadMessages, loadMessages,
       notifications, unreadNotifications, markNotificationRead,

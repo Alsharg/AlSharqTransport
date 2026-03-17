@@ -166,6 +166,13 @@ export default function AdminDriversScreen() {
                     <Text style={[styles.actionText, { color: '#60A5FA' }]}>محادثة</Text>
                   </Pressable>
                   <Pressable
+                    onPress={() => router.push({ pathname: '/admin/driver-profile', params: { driverId: driver.id } })}
+                    style={[styles.actionBtn, { backgroundColor: theme.primary + '12' }]}
+                  >
+                    <MaterialIcons name="visibility" size={16} color={theme.primary} />
+                    <Text style={[styles.actionText, { color: theme.primary }]}>الملف</Text>
+                  </Pressable>
+                  <Pressable
                     onPress={() => {
                       const phone = driver.phone ? driver.phone.replace(/^0/, '966') : '';
                       if (phone) Linking.openURL(`https://wa.me/${phone}`).catch(() => {});

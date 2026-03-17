@@ -34,7 +34,7 @@ export default function AdminDashboard() {
       items: [
         { label: 'إدارة المشرفين', icon: 'admin-panel-settings', route: '/admin/admins', badge: 0 },
         { label: 'سجل العمليات', icon: 'history', route: '/admin/audit-logs', badge: 0 },
-        { label: 'الصلاحيات', icon: 'security', route: '/admin/admins', badge: 0 },
+        { label: 'الصلاحيات', icon: 'security', route: '/admin/permissions', badge: 0 },
       ],
     },
     {

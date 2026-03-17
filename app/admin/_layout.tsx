@@ -21,6 +21,8 @@ export default function AdminLayout() {
         <Stack.Screen name="pricing" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="clients" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="contracts" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="driver-profile" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="permissions" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </RoleGuard>
   );

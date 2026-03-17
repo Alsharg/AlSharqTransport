@@ -20,7 +20,7 @@ const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 
 export default function RequestTripScreen() {
   const insets = useSafeAreaInsets();
   const { showAlert } = useAlert();
-  const { createTrip } = useApp();
+  const { createTrip, calculateTripPrice } = useApp();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
@@ -39,6 +39,12 @@ export default function RequestTripScreen() {
     setWorkDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
   };
 
+  const [estimatedPrice, setEstimatedPrice] = useState(0);
+  React.useEffect(() => {
+    const price = calculateTripPrice(tripType, city, parseInt(passengers) || 1);
+    setEstimatedPrice(price);
+  }, [tripType, city, passengers, calculateTripPrice]);
+
   const handleSubmit = async () => {
     if (!homeLocation.trim() || !workLocation.trim()) {
       showAlert('خطأ', 'يرجى إدخال موقع الانطلاق والوصول');
@@ -55,7 +61,7 @@ export default function RequestTripScreen() {
       scheduled_date: new Date().toISOString().split('T')[0],
       passengers: parseInt(passengers) || 1,
       passenger_gender: passengerGender,
-      price: 0,
+      price: estimatedPrice,
       notes: notes.trim(),
       city: city.trim(),
       work_days: workDays.join(', '),
@@ -140,6 +146,18 @@ export default function RequestTripScreen() {
             <TextInput value={returnTime} onChangeText={setReturnTime} placeholder="مثال: 04:00 مساءً" placeholderTextColor={theme.textMuted} style={styles.input} textAlign="right" />
           </Animated.View>
 
+          {/* Estimated Price */}
+          {estimatedPrice > 0 ? (
+            <Animated.View entering={FadeInDown.duration(300).delay(450)} style={styles.priceCard}>
+              <View style={styles.priceHeader}>
+                <MaterialIcons name="calculate" size={22} color={theme.accent} />
+                <Text style={styles.priceLabel}>السعر التقديري</Text>
+              </View>
+              <Text style={styles.priceValue}>{estimatedPrice.toFixed(0)} ر.س</Text>
+              <Text style={styles.priceNote}>يتم حسابه تلقائياً حسب نوع المشوار والمدينة وعدد الركاب</Text>
+            </Animated.View>
+          ) : null}
+
           {/* Notes */}
           <Animated.View entering={FadeInDown.duration(300).delay(500)}>
             <Text style={styles.label}>ملاحظات إضافية</Text>
@@ -178,4 +196,9 @@ const styles = StyleSheet.create({
   bottomBar: { paddingHorizontal: 20, paddingTop: 12, backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.border },
   submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#8B5CF6', paddingVertical: 16, borderRadius: theme.radiusMedium },
   submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  priceCard: { marginTop: 18, padding: 20, backgroundColor: theme.accent + '10', borderRadius: theme.radiusMedium, borderWidth: 1.5, borderColor: theme.accent + '30', alignItems: 'center', gap: 8 },
+  priceHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  priceLabel: { fontSize: 14, fontWeight: '600', color: theme.accent, writingDirection: 'rtl' as const },
+  priceValue: { fontSize: 32, fontWeight: '700', color: theme.accent },
+  priceNote: { fontSize: 11, color: theme.textMuted, writingDirection: 'rtl' as const, textAlign: 'center' as const },
 });

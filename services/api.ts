@@ -442,6 +442,13 @@ export async function updateUserRating(userId: string) {
   await updateUserProfile(userId, { rating: parseFloat(avg.toFixed(2)) });
 }
 
+// ===== Pricing Config =====
+export async function fetchPricingConfigs(): Promise<any[]> {
+  const { data, error } = await supabase.from('pricing_config').select('*').eq('is_active', true).order('created_at', { ascending: false });
+  if (error) return [];
+  return data || [];
+}
+
 // ===== Driver Location =====
 export async function updateDriverLocation(driverId: string, lat: number, lng: number) {
   // Store in user profile metadata or a separate field — using status update pattern

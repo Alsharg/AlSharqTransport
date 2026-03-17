@@ -13,7 +13,7 @@ export default function ClientHomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  const { clientTrips, clientActiveTrips, clientCompletedTrips, notifications, unreadNotifications } = useApp();
+  const { clientTrips, clientActiveTrips, clientCompletedTrips, notifications, unreadNotifications, tripApplications, handleNotificationAction } = useApp();
 
   const displayName = user?.full_name || user?.username || 'عميل';
 
@@ -80,6 +80,47 @@ export default function ClientHomeScreen() {
             <Text style={styles.statLabel}>إجمالي</Text>
           </View>
         </Animated.View>
+
+        {/* Pending Driver Approvals — Client can approve/reject drivers */}
+        {(() => {
+          const pendingApprovals = clientTrips.filter(t => t.status === 'available').map(t => {
+            const apps = tripApplications.filter(a => a.trip_id === t.id && a.status === 'pending');
+            return apps.length > 0 ? { trip: t, applications: apps } : null;
+          }).filter(Boolean) as { trip: any; applications: any[] }[];
+          return pendingApprovals.length > 0 ? (
+            <Animated.View entering={FadeInDown.duration(400).delay(350)}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>طلبات سائقين بانتظار موافقتك</Text>
+                <View style={[styles.countBadge, { backgroundColor: '#F59E0B' }]}><Text style={styles.countBadgeText}>{pendingApprovals.reduce((s, p) => s + p.applications.length, 0)}</Text></View>
+              </View>
+              {pendingApprovals.map(({ trip, applications }) => (
+                applications.map(app => (
+                  <View key={app.id} style={styles.approvalCard}>
+                    <View style={styles.approvalTop}>
+                      <View style={[styles.approvalIcon, { backgroundColor: '#F59E0B15' }]}>
+                        <MaterialIcons name="person-pin" size={22} color="#F59E0B" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.approvalName}>{app.driver_name}</Text>
+                        <Text style={styles.approvalTrip}>{trip.pickup_location} \u2192 {trip.dropoff_location}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.approvalActions}>
+                      <Pressable onPress={() => handleNotificationAction('', 'reject_driver_for_trip', { tripId: trip.id, applicationId: app.id, driverId: app.driver_id })} style={[styles.approvalBtn, { backgroundColor: theme.errorLight }]}>
+                        <MaterialIcons name="close" size={18} color={theme.error} />
+                        <Text style={[styles.approvalBtnText, { color: theme.error }]}>رفض</Text>
+                      </Pressable>
+                      <Pressable onPress={() => handleNotificationAction('', 'approve_driver_for_trip', { tripId: trip.id, driverId: app.driver_id })} style={[styles.approvalBtn, { backgroundColor: theme.successLight, flex: 2 }]}>
+                        <MaterialIcons name="check" size={18} color={theme.success} />
+                        <Text style={[styles.approvalBtnText, { color: theme.success }]}>موافقة</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))
+              ))}
+            </Animated.View>
+          ) : null;
+        })()}
 
         {/* Active Trips */}
         {clientActiveTrips.length > 0 ? (
@@ -171,4 +212,12 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: theme.textMuted, marginTop: 16, writingDirection: 'rtl' },
   emptySubtitle: { fontSize: 13, color: theme.textMuted, marginTop: 4, writingDirection: 'rtl' },
+  approvalCard: { marginHorizontal: 20, marginBottom: 10, padding: 16, backgroundColor: '#F59E0B08', borderRadius: theme.radiusLarge, borderWidth: 1.5, borderColor: '#F59E0B30' },
+  approvalTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  approvalIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  approvalName: { fontSize: 15, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl', textAlign: 'right' },
+  approvalTrip: { fontSize: 12, color: theme.textMuted, writingDirection: 'rtl', textAlign: 'right', marginTop: 2 },
+  approvalActions: { flexDirection: 'row', gap: 10 },
+  approvalBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: theme.radiusMedium },
+  approvalBtnText: { fontSize: 14, fontWeight: '700' },
 });
