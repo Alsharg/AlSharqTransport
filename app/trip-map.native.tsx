@@ -4,27 +4,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { theme, typography } from '../constants/theme';
 import { useApp } from '../contexts/AppContext';
 import { getTripTypeLabel, getStatusColor } from '../services/types';
 
-let MapView: any = null;
-let Marker: any = null;
-let Polyline: any = null;
-
-// Load react-native-maps for mobile
-if (Platform.OS !== 'web') {
-  try {
-    const maps = require('react-native-maps');
-    MapView = maps.default;
-    Marker = maps.Marker;
-    Polyline = maps.Polyline;
-  } catch (e) {
-    // Maps not available
-  }
-}
-
-// Riyadh coordinates for demo
 const RIYADH_LOCATIONS: Record<string, { lat: number; lng: number }> = {
   'حي الياسمين': { lat: 24.8200, lng: 46.6700 },
   'طريق الملك فهد': { lat: 24.7136, lng: 46.6753 },
@@ -82,57 +66,6 @@ export default function TripMapScreen() {
   const midLng = (pickup.lng + dropoff.lng) / 2;
   const statusColor = getStatusColor(trip.status);
 
-  const renderWebMap = () => (
-    <View style={[styles.mapPlaceholder, { height: dimensions.height * 0.55 }]}>
-      <MaterialIcons name="map" size={80} color={theme.primary + '30'} />
-      <Text style={styles.mapPlaceholderTitle}>خريطة المشوار</Text>
-      <Text style={styles.mapPlaceholderDesc}>الخريطة متاحة على التطبيق فقط</Text>
-      <View style={styles.coordsBox}>
-        <View style={styles.coordRow}>
-          <View style={[styles.coordDot, { backgroundColor: theme.success }]} />
-          <Text style={styles.coordText}>الانطلاق: {pickup.lat.toFixed(4)}, {pickup.lng.toFixed(4)}</Text>
-        </View>
-        <View style={styles.coordRow}>
-          <View style={[styles.coordDot, { backgroundColor: theme.error }]} />
-          <Text style={styles.coordText}>الوجهة: {dropoff.lat.toFixed(4)}, {dropoff.lng.toFixed(4)}</Text>
-        </View>
-      </View>
-    </View>
-  );
-
-  const renderNativeMap = () => {
-    if (!MapView) return renderWebMap();
-    return (
-      <MapView
-        style={{ height: dimensions.height * 0.55, width: '100%' }}
-        initialRegion={{
-          latitude: midLat,
-          longitude: midLng,
-          latitudeDelta: Math.abs(pickup.lat - dropoff.lat) * 1.8 + 0.02,
-          longitudeDelta: Math.abs(pickup.lng - dropoff.lng) * 1.8 + 0.02,
-        }}
-      >
-        {Marker ? (
-          <>
-            <Marker coordinate={{ latitude: pickup.lat, longitude: pickup.lng }} title="نقطة الانطلاق" description={trip.pickup_location} pinColor="green" />
-            <Marker coordinate={{ latitude: dropoff.lat, longitude: dropoff.lng }} title="الوجهة" description={trip.dropoff_location} pinColor="red" />
-          </>
-        ) : null}
-        {Polyline ? (
-          <Polyline
-            coordinates={[
-              { latitude: pickup.lat, longitude: pickup.lng },
-              { latitude: midLat + 0.005, longitude: midLng },
-              { latitude: dropoff.lat, longitude: dropoff.lng },
-            ]}
-            strokeColor={theme.primary}
-            strokeWidth={4}
-          />
-        ) : null}
-      </MapView>
-    );
-  };
-
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
       <Animated.View entering={FadeInDown.duration(300)} style={styles.header}>
@@ -146,7 +79,28 @@ export default function TripMapScreen() {
         </View>
       </Animated.View>
 
-      {Platform.OS === 'web' ? renderWebMap() : renderNativeMap()}
+      <MapView
+        style={{ height: dimensions.height * 0.55, width: '100%' }}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        initialRegion={{
+          latitude: midLat,
+          longitude: midLng,
+          latitudeDelta: Math.abs(pickup.lat - dropoff.lat) * 1.8 + 0.02,
+          longitudeDelta: Math.abs(pickup.lng - dropoff.lng) * 1.8 + 0.02,
+        }}
+      >
+        <Marker coordinate={{ latitude: pickup.lat, longitude: pickup.lng }} title="نقطة الانطلاق" description={trip.pickup_location} pinColor="green" />
+        <Marker coordinate={{ latitude: dropoff.lat, longitude: dropoff.lng }} title="الوجهة" description={trip.dropoff_location} pinColor="red" />
+        <Polyline
+          coordinates={[
+            { latitude: pickup.lat, longitude: pickup.lng },
+            { latitude: midLat + 0.005, longitude: midLng },
+            { latitude: dropoff.lat, longitude: dropoff.lng },
+          ]}
+          strokeColor={theme.primary}
+          strokeWidth={4}
+        />
+      </MapView>
 
       <Animated.View entering={FadeInUp.duration(400)} style={[styles.infoPanel, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.infoPanelHandle} />
@@ -200,40 +154,26 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: theme.border,
   },
   closeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.backgroundSecondary, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { ...typography.subtitle, writingDirection: 'rtl' },
+  headerTitle: { ...typography.subtitle, writingDirection: 'rtl' as const },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radiusFull },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 12, fontWeight: '600' },
-  
-  mapPlaceholder: {
-    backgroundColor: '#E8F4FD', alignItems: 'center', justifyContent: 'center', gap: 8,
-  },
-  mapPlaceholderTitle: { ...typography.subtitle, color: theme.primary, writingDirection: 'rtl' },
-  mapPlaceholderDesc: { ...typography.caption, writingDirection: 'rtl' },
-  coordsBox: { marginTop: 16, gap: 8, padding: 16, backgroundColor: theme.surface, borderRadius: theme.radiusMedium, ...theme.shadow },
-  coordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  coordDot: { width: 10, height: 10, borderRadius: 5 },
-  coordText: { ...typography.caption },
-
   infoPanel: {
     flex: 1, backgroundColor: theme.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, ...theme.shadowModal, marginTop: -10,
+    padding: 20, marginTop: -10,
   },
   infoPanelHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 16 },
-  infoTitle: { ...typography.subtitle, writingDirection: 'rtl', textAlign: 'right' },
-  infoDate: { ...typography.caption, writingDirection: 'rtl', textAlign: 'right', marginTop: 4, marginBottom: 16 },
-
+  infoTitle: { ...typography.subtitle, writingDirection: 'rtl' as const, textAlign: 'right' },
+  infoDate: { ...typography.caption, writingDirection: 'rtl' as const, textAlign: 'right', marginTop: 4, marginBottom: 16 },
   routeInfo: { gap: 0 },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   routeCircle: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  routeLabel: { ...typography.smallLabel, writingDirection: 'rtl', textAlign: 'right' },
-  routeAddress: { ...typography.body, writingDirection: 'rtl', textAlign: 'right', fontWeight: '500' },
+  routeLabel: { fontSize: 11, fontWeight: '600', color: theme.textMuted, writingDirection: 'rtl' as const, textAlign: 'right' },
+  routeAddress: { fontSize: 15, fontWeight: '500', color: theme.textPrimary, writingDirection: 'rtl' as const, textAlign: 'right' },
   routeDash: { width: 2, height: 24, backgroundColor: theme.border, marginLeft: 13 },
-
   infoFooter: { flexDirection: 'row', gap: 20, marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: theme.borderLight },
   infoStat: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  infoStatValue: { ...typography.bodyBold },
-
-  errorText: { ...typography.subtitle, textAlign: 'center', marginTop: 16, writingDirection: 'rtl' },
+  infoStatValue: { fontSize: 15, fontWeight: '700', color: theme.textPrimary },
+  errorText: { fontSize: 17, fontWeight: '600', color: theme.textMuted, textAlign: 'center', marginTop: 16, writingDirection: 'rtl' as const },
   backBtnFallback: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: theme.primary, borderRadius: theme.radiusMedium },
 });
