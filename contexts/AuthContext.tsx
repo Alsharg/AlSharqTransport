@@ -9,7 +9,7 @@ interface AuthContextType {
   isLoggedIn: boolean;
   isLoading: boolean;
   operationLoading: boolean;
-  userRole: 'admin' | 'driver' | 'supervisor' | null;
+  userRole: 'admin' | 'driver' | 'supervisor' | 'client' | null;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   sendOTP: (email: string) => Promise<{ success: boolean; error?: string }>;
   verifyOTPAndRegister: (email: string, otp: string, password: string, metadata: Record<string, string>, role: string) => Promise<{ success: boolean; error?: string }>;
@@ -236,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoggedIn: !!user,
       isLoading,
       operationLoading,
-      userRole: user?.role || null,
+      userRole: (user?.role as 'admin' | 'driver' | 'supervisor' | 'client') || null,
       login,
       sendOTP,
       verifyOTPAndRegister,

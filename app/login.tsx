@@ -34,6 +34,7 @@ export default function LoginScreen() {
     }
     const result = await login(email.trim(), password);
     if (result.success) {
+      // After login, route based on the actual role from DB — not the selected portal
       router.replace('/');
     } else {
       showAlert('خطأ في الدخول', result.error || 'حدث خطأ');

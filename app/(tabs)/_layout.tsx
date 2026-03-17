@@ -5,6 +5,7 @@ import { Platform, View, Text } from 'react-native';
 import { theme } from '../../constants/theme';
 import { useApp } from '../../contexts/AppContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { RoleGuard } from '../../components/RoleGuard';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -22,19 +23,21 @@ export default function TabLayout() {
   };
 
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarStyle, tabBarActiveTintColor: theme.accent, tabBarInactiveTintColor: theme.textMuted, tabBarLabelStyle: { fontSize: 11, fontWeight: '600' } }}>
-      <Tabs.Screen name="index" options={{ title: t.home, tabBarIcon: ({ color, size }) => <MaterialIcons name="home" size={size} color={color} /> }} />
-      <Tabs.Screen name="trips" options={{
-        title: t.myTrips,
-        tabBarIcon: ({ color, size }) => (
-          <View>
-            <MaterialIcons name="route" size={size} color={color} />
-            {activeTrips.length > 0 ? <View style={{ position: 'absolute', top: -4, right: -8, backgroundColor: theme.error, borderRadius: 8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>{activeTrips.length}</Text></View> : null}
-          </View>
-        ),
-      }} />
-      <Tabs.Screen name="earnings" options={{ title: t.earnings, tabBarIcon: ({ color, size }) => <MaterialIcons name="account-balance-wallet" size={size} color={color} /> }} />
-      <Tabs.Screen name="more" options={{ title: t.more, tabBarIcon: ({ color, size }) => <MaterialIcons name="menu" size={size} color={color} /> }} />
-    </Tabs>
+    <RoleGuard allowedRoles={['driver']}>
+      <Tabs screenOptions={{ headerShown: false, tabBarStyle, tabBarActiveTintColor: theme.accent, tabBarInactiveTintColor: theme.textMuted, tabBarLabelStyle: { fontSize: 11, fontWeight: '600' } }}>
+        <Tabs.Screen name="index" options={{ title: t.home, tabBarIcon: ({ color, size }) => <MaterialIcons name="home" size={size} color={color} /> }} />
+        <Tabs.Screen name="trips" options={{
+          title: t.myTrips,
+          tabBarIcon: ({ color, size }) => (
+            <View>
+              <MaterialIcons name="route" size={size} color={color} />
+              {activeTrips.length > 0 ? <View style={{ position: 'absolute', top: -4, right: -8, backgroundColor: theme.error, borderRadius: 8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>{activeTrips.length}</Text></View> : null}
+            </View>
+          ),
+        }} />
+        <Tabs.Screen name="earnings" options={{ title: t.earnings, tabBarIcon: ({ color, size }) => <MaterialIcons name="account-balance-wallet" size={size} color={color} /> }} />
+        <Tabs.Screen name="more" options={{ title: t.more, tabBarIcon: ({ color, size }) => <MaterialIcons name="menu" size={size} color={color} /> }} />
+      </Tabs>
+    </RoleGuard>
   );
 }
