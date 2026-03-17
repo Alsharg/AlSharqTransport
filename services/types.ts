@@ -1,10 +1,11 @@
 // Database-aligned types for the Al-Sharq Transport app
+// Supports 4 roles: admin, supervisor, driver, client
 
 export interface UserProfile {
   id: string;
   email: string;
   username?: string;
-  role: 'admin' | 'driver' | 'supervisor';
+  role: 'admin' | 'driver' | 'supervisor' | 'client';
   full_name: string;
   phone?: string;
   nationality?: string;
@@ -23,6 +24,21 @@ export interface UserProfile {
   penalties: number;
   avatar_url?: string;
   push_token?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Client {
+  id: string;
+  user_id: string;
+  company_name?: string;
+  address?: string;
+  preferred_driver_id?: string;
+  notes?: string;
+  contract_type?: 'monthly' | 'daily' | 'yearly';
+  contract_start?: string;
+  contract_end?: string;
+  is_blocked: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -87,7 +103,7 @@ export interface Message {
   id: string;
   sender_id: string;
   sender_name: string;
-  sender_role: 'admin' | 'driver';
+  sender_role: 'admin' | 'driver' | 'client';
   recipient_id?: string;
   content: string;
   is_read: boolean;
@@ -162,7 +178,72 @@ export interface WalletTransaction {
   created_at: string;
 }
 
-// Conversation summary for admin chat list
+export interface Rating {
+  id: string;
+  trip_id: string;
+  rater_id: string;
+  rated_id: string;
+  rating: number;
+  comment?: string;
+  rater_role: 'client' | 'driver' | 'admin';
+  created_at: string;
+}
+
+export interface AuditLog {
+  id: string;
+  actor_id?: string;
+  actor_name: string;
+  actor_role: string;
+  action: string;
+  target_type: string;
+  target_id?: string;
+  details?: Record<string, any>;
+  ip_address?: string;
+  created_at: string;
+}
+
+export interface PricingConfig {
+  id: string;
+  name: string;
+  base_price: number;
+  price_per_km: number;
+  surge_multiplier: number;
+  min_price: number;
+  city?: string;
+  trip_type?: string;
+  is_active: boolean;
+  created_by?: string;
+  updated_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Contract {
+  id: string;
+  title: string;
+  type: 'employment' | 'client' | 'service';
+  user_id: string;
+  client_id?: string;
+  content?: string;
+  status: 'draft' | 'active' | 'expired' | 'terminated';
+  start_date?: string;
+  end_date?: string;
+  monthly_amount?: number;
+  signed_at?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RolePermission {
+  id: string;
+  role: string;
+  permission: string;
+  is_allowed: boolean;
+  created_at: string;
+}
+
+// Conversation summary for chat
 export interface ConversationSummary {
   driverId: string;
   driverName: string;
@@ -173,7 +254,8 @@ export interface ConversationSummary {
   isOnline: boolean;
 }
 
-// Helper functions
+// ===== Helper Functions =====
+
 export const getTripTypeLabel = (type: Trip['type']): string => {
   const labels = { employee: 'توصيل موظفين', monthly: 'توصيل شهري', delivery: 'توصيل طلبات', private: 'مشوار خاص' };
   return labels[type] || type;
@@ -190,7 +272,7 @@ export const getTripTypeIcon = (type: Trip['type']): string => {
 };
 
 export const getStatusColor = (status: Trip['status']): string => {
-  const colors: Record<string, string> = { available: '#60A5FA', accepted: '#FBBF24', inProgress: '#A78BFA', completed: '#34D399', cancelled: '#F87171', archived: '#64748B', agreed: '#34D399', confirmed: '#34D399' };
+  const colors: Record<string, string> = { available: '#3B82F6', accepted: '#F59E0B', inProgress: '#8B5CF6', completed: '#22C55E', cancelled: '#EF4444', archived: '#64748B', agreed: '#14B8A6', confirmed: '#14B8A6' };
   return colors[status] || '#64748B';
 };
 
@@ -200,8 +282,18 @@ export const getDriverLevelLabel = (level: number): string => {
 };
 
 export const getDriverLevelColor = (level: number): string => {
-  const colors: Record<number, string> = { 1: '#64748B', 2: '#60A5FA', 3: '#A78BFA', 4: '#FBBF24', 5: '#34D399' };
+  const colors: Record<number, string> = { 1: '#64748B', 2: '#3B82F6', 3: '#8B5CF6', 4: '#F59E0B', 5: '#22C55E' };
   return colors[level] || '#64748B';
+};
+
+export const getRoleLabel = (role: string): string => {
+  const labels: Record<string, string> = { admin: 'مدير', supervisor: 'مشرف', driver: 'كابتن', client: 'عميل' };
+  return labels[role] || role;
+};
+
+export const getRoleColor = (role: string): string => {
+  const colors: Record<string, string> = { admin: '#D4A017', supervisor: '#3B82F6', driver: '#22C55E', client: '#8B5CF6' };
+  return colors[role] || '#64748B';
 };
 
 export const getCommissionStatusLabel = (status: CommissionPayment['status']): string => {
@@ -210,7 +302,7 @@ export const getCommissionStatusLabel = (status: CommissionPayment['status']): s
 };
 
 export const getCommissionStatusColor = (status: CommissionPayment['status']): string => {
-  const colors = { pending: '#FBBF24', receipt_uploaded: '#60A5FA', confirmed: '#34D399', rejected: '#F87171' };
+  const colors = { pending: '#F59E0B', receipt_uploaded: '#3B82F6', confirmed: '#22C55E', rejected: '#EF4444' };
   return colors[status] || '#64748B';
 };
 
@@ -220,11 +312,21 @@ export const getWalletTransactionLabel = (type: WalletTransaction['type']): stri
 };
 
 export const getWalletTransactionColor = (type: WalletTransaction['type']): string => {
-  const colors = { topup: '#34D399', commission_deduction: '#F87171', refund: '#60A5FA' };
+  const colors = { topup: '#22C55E', commission_deduction: '#EF4444', refund: '#3B82F6' };
   return colors[type] || '#64748B';
 };
 
 export const formatTripNumber = (num?: number): string => {
   if (!num) return '';
   return `SH-${num}`;
+};
+
+export const getContractStatusLabel = (status: string): string => {
+  const labels: Record<string, string> = { draft: 'مسودة', active: 'نشط', expired: 'منتهي', terminated: 'ملغي' };
+  return labels[status] || status;
+};
+
+export const getContractStatusColor = (status: string): string => {
+  const colors: Record<string, string> = { draft: '#64748B', active: '#22C55E', expired: '#F59E0B', terminated: '#EF4444' };
+  return colors[status] || '#64748B';
 };

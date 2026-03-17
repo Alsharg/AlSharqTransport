@@ -1,7 +1,7 @@
 export const config = {
   appName: 'الشرق للنقل والتوصيل',
   appNameEn: 'Al-Sharq Transport',
-  version: '1.0.0',
+  version: '2.0.0',
   
   // Commission System
   platformCommissionRate: 0.10, // 10%
@@ -36,4 +36,12 @@ export const config = {
   
   // Currency
   currency: 'ريال',
+
+  // Roles
+  roles: {
+    admin: 'مدير',
+    supervisor: 'مشرف',
+    driver: 'كابتن',
+    client: 'عميل',
+  } as const,
 };

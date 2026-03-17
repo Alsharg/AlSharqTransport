@@ -22,7 +22,7 @@ export default function TabLayout() {
   };
 
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarStyle, tabBarActiveTintColor: theme.primary, tabBarInactiveTintColor: theme.textMuted, tabBarLabelStyle: { fontSize: 11, fontWeight: '600' } }}>
+    <Tabs screenOptions={{ headerShown: false, tabBarStyle, tabBarActiveTintColor: theme.accent, tabBarInactiveTintColor: theme.textMuted, tabBarLabelStyle: { fontSize: 11, fontWeight: '600' } }}>
       <Tabs.Screen name="index" options={{ title: t.home, tabBarIcon: ({ color, size }) => <MaterialIcons name="home" size={size} color={color} /> }} />
       <Tabs.Screen name="trips" options={{
         title: t.myTrips,
