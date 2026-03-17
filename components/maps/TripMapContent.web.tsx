@@ -2,39 +2,26 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { theme, typography } from '../constants/theme';
-import { useApp } from '../contexts/AppContext';
-import { getTripTypeLabel, getStatusColor } from '../services/types';
+import { theme } from '../../constants/theme';
+import { useApp } from '../../contexts/AppContext';
+import { getTripTypeLabel, getStatusColor } from '../../services/types';
 
 const RIYADH_LOCATIONS: Record<string, { lat: number; lng: number }> = {
-  'حي الياسمين': { lat: 24.8200, lng: 46.6700 },
-  'طريق الملك فهد': { lat: 24.7136, lng: 46.6753 },
-  'حي النرجس': { lat: 24.8100, lng: 46.6300 },
-  'فندق الريتز كارلتون': { lat: 24.6900, lng: 46.6850 },
-  'مطار الملك خالد الدولي': { lat: 24.9578, lng: 46.6989 },
-  'حي الملقا': { lat: 24.7930, lng: 46.6210 },
-  'جامعة الملك سعود': { lat: 24.7226, lng: 46.6329 },
-  'حي العليا': { lat: 24.6920, lng: 46.6850 },
   'default_pickup': { lat: 24.7500, lng: 46.6500 },
   'default_dropoff': { lat: 24.7100, lng: 46.6900 },
 };
 
 function getCoords(location: string, isPickup: boolean) {
-  for (const [key, value] of Object.entries(RIYADH_LOCATIONS)) {
-    if (location.includes(key)) return value;
-  }
   return isPickup ? RIYADH_LOCATIONS['default_pickup'] : RIYADH_LOCATIONS['default_dropoff'];
 }
 
-export default function TripMapScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+export function TripMapContent({ tripId }: { tripId: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getTripById } = useApp();
-
-  const trip = getTripById(id || '');
+  const trip = getTripById(tripId);
 
   if (!trip) {
     return (
@@ -73,7 +60,7 @@ export default function TripMapScreen() {
       <View style={styles.mapPlaceholder}>
         <MaterialIcons name="map" size={80} color={theme.primary + '30'} />
         <Text style={styles.mapPlaceholderTitle}>خريطة المشوار</Text>
-        <Text style={styles.mapPlaceholderDesc}>الخريطة متاحة على التطبيق فقط</Text>
+        <Text style={styles.mapPlaceholderDesc}>الخريطة التفاعلية متاحة على التطبيق فقط</Text>
         <View style={styles.coordsBox}>
           <View style={styles.coordRow}>
             <View style={[styles.coordDot, { backgroundColor: theme.success }]} />
@@ -90,53 +77,28 @@ export default function TripMapScreen() {
         <View style={styles.infoPanelHandle} />
         <Text style={styles.infoTitle}>{getTripTypeLabel(trip.type)}</Text>
         <Text style={styles.infoDate}>{trip.scheduled_time} • {trip.scheduled_date}</Text>
-
         <View style={styles.routeInfo}>
-          <View style={styles.routeRow}>
-            <View style={[styles.routeCircle, { backgroundColor: theme.success }]}>
-              <MaterialIcons name="trip-origin" size={12} color="#FFF" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.routeLabel}>نقطة الانطلاق</Text>
-              <Text style={styles.routeAddress}>{trip.pickup_location}</Text>
-            </View>
-          </View>
+          <View style={styles.routeRow}><View style={[styles.routeCircle, { backgroundColor: theme.success }]}><MaterialIcons name="trip-origin" size={12} color="#FFF" /></View><View style={{ flex: 1 }}><Text style={styles.routeLabel}>نقطة الانطلاق</Text><Text style={styles.routeAddress}>{trip.pickup_location}</Text></View></View>
           <View style={styles.routeDash} />
-          <View style={styles.routeRow}>
-            <View style={[styles.routeCircle, { backgroundColor: theme.error }]}>
-              <MaterialIcons name="place" size={12} color="#FFF" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.routeLabel}>الوجهة</Text>
-              <Text style={styles.routeAddress}>{trip.dropoff_location}</Text>
-            </View>
-          </View>
+          <View style={styles.routeRow}><View style={[styles.routeCircle, { backgroundColor: theme.error }]}><MaterialIcons name="place" size={12} color="#FFF" /></View><View style={{ flex: 1 }}><Text style={styles.routeLabel}>الوجهة</Text><Text style={styles.routeAddress}>{trip.dropoff_location}</Text></View></View>
         </View>
-
         <View style={styles.infoFooter}>
-          <View style={styles.infoStat}>
-            <MaterialIcons name="attach-money" size={20} color={theme.accent} />
-            <Text style={styles.infoStatValue}>{trip.price} ر.س</Text>
-          </View>
-          {trip.passengers > 0 ? (
-            <View style={styles.infoStat}>
-              <MaterialIcons name="people" size={20} color={theme.primary} />
-              <Text style={styles.infoStatValue}>{trip.passengers} ركاب</Text>
-            </View>
-          ) : null}
+          <View style={styles.infoStat}><MaterialIcons name="attach-money" size={20} color={theme.accent} /><Text style={styles.infoStatValue}>{trip.price} ر.س</Text></View>
+          {trip.passengers > 0 ? <View style={styles.infoStat}><MaterialIcons name="people" size={20} color={theme.primary} /><Text style={styles.infoStatValue}>{trip.passengers} ركاب</Text></View> : null}
         </View>
       </Animated.View>
+
+      <Pressable onPress={() => router.back()} style={styles.goBackBtn}>
+        <MaterialIcons name="arrow-forward" size={20} color="#FFF" />
+        <Text style={styles.goBackBtnText}>العودة</Text>
+      </Pressable>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: theme.surface,
-    borderBottomWidth: 1, borderBottomColor: theme.border,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border },
   closeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.backgroundSecondary, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl' as const },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radiusFull },
@@ -145,14 +107,11 @@ const styles = StyleSheet.create({
   mapPlaceholder: { height: 300, backgroundColor: theme.surfaceElevated, alignItems: 'center', justifyContent: 'center', gap: 8 },
   mapPlaceholderTitle: { fontSize: 17, fontWeight: '700', color: theme.primary, writingDirection: 'rtl' as const },
   mapPlaceholderDesc: { fontSize: 13, color: theme.textMuted, writingDirection: 'rtl' as const },
-  coordsBox: { marginTop: 16, gap: 8, padding: 16, backgroundColor: theme.surface, borderRadius: theme.radiusMedium, borderWidth: 1, borderColor: theme.border },
+  coordsBox: { marginTop: 16, gap: 8, padding: 16, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border },
   coordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   coordDot: { width: 10, height: 10, borderRadius: 5 },
   coordText: { fontSize: 13, color: theme.textMuted },
-  infoPanel: {
-    flex: 1, backgroundColor: theme.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, marginTop: -10,
-  },
+  infoPanel: { flex: 1, backgroundColor: theme.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, marginTop: -10 },
   infoPanelHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 16 },
   infoTitle: { fontSize: 17, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl' as const, textAlign: 'right' },
   infoDate: { fontSize: 13, color: theme.textMuted, writingDirection: 'rtl' as const, textAlign: 'right', marginTop: 4, marginBottom: 16 },
@@ -166,5 +125,7 @@ const styles = StyleSheet.create({
   infoStat: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   infoStatValue: { fontSize: 15, fontWeight: '700', color: theme.textPrimary },
   errorText: { fontSize: 17, fontWeight: '600', color: theme.textMuted, textAlign: 'center', marginTop: 16, writingDirection: 'rtl' as const },
-  backBtnFallback: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: theme.primary, borderRadius: theme.radiusMedium },
+  backBtnFallback: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: theme.primary, borderRadius: 12 },
+  goBackBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.primary, paddingVertical: 16, borderRadius: 12, marginHorizontal: 24, marginBottom: 16 },
+  goBackBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });
