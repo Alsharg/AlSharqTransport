@@ -15,7 +15,7 @@ export default function IndexScreen() {
     );
   }
 
-  if (isLoggedIn) {
+  if (isLoggedIn && userRole) {
     if (userRole === 'admin' || userRole === 'supervisor') {
       return <Redirect href="/admin" />;
     }

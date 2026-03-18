@@ -56,7 +56,7 @@ export default function ClientRegisterScreen() {
     }, 'client');
     if (result.success) {
       showAlert('تم التسجيل بنجاح', 'مرحباً بك في الشرق للنقل والتوصيل', [
-        { text: 'حسناً', onPress: () => { setTimeout(() => router.replace('/login'), 100); } },
+        { text: 'حسناً', onPress: () => { setTimeout(() => router.replace('/client'), 100); } },
       ]);
     } else showAlert('خطأ', result.error || 'حدث خطأ في التسجيل');
   };

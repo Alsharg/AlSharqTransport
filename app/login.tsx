@@ -28,10 +28,10 @@ export default function LoginScreen() {
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
 
-  if (isLoggedIn) {
+  if (isLoggedIn && userRole) {
     if (userRole === 'admin' || userRole === 'supervisor') router.replace('/admin');
     else if (userRole === 'client') router.replace('/client');
-    else router.replace('/(tabs)');
+    else if (userRole === 'driver') router.replace('/(tabs)');
     return null;
   }
 
@@ -42,7 +42,15 @@ export default function LoginScreen() {
     }
     const result = await login(email.trim(), password);
     if (result.success) {
-      router.replace('/');
+      // Use the role returned from login to navigate directly — avoids race conditions
+      const role = result.role;
+      if (role === 'admin' || role === 'supervisor') {
+        router.replace('/admin');
+      } else if (role === 'client') {
+        router.replace('/client');
+      } else {
+        router.replace('/(tabs)');
+      }
     } else {
       showAlert('خطأ في الدخول', result.error || 'حدث خطأ');
     }

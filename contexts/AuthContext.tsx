@@ -10,7 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   operationLoading: boolean;
   userRole: 'admin' | 'driver' | 'supervisor' | 'client' | null;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: string | null }>;
   sendOTP: (email: string) => Promise<{ success: boolean; error?: string }>;
   verifyOTPAndRegister: (email: string, otp: string, password: string, metadata: Record<string, string>, role: string) => Promise<{ success: boolean; error?: string }>;
   verifyOTPForReset: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (result.error) {
         setOperationLoading(false);
         api.createAuditLog({ actor_name: email, actor_role: 'unknown', action: 'login_failed', target_type: 'auth', details: { email, reason: result.error } });
-        return { success: false, error: result.error };
+        return { success: false, error: result.error, role: null };
       }
       if (result.user) {
         setAuthUser(result.user);
@@ -82,22 +82,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAuthUser(null);
           setUser(null);
           setOperationLoading(false);
-          return { success: false, error: 'حسابك قيد المراجعة. ستتلقى إشعاراً عند القبول.' };
+          return { success: false, error: 'حسابك قيد المراجعة. ستتلقى إشعاراً عند القبول.', role: null };
         }
         if (profile && !profile.is_active && profile.role !== 'client') {
           await api.signOutUser();
           setAuthUser(null);
           setUser(null);
           setOperationLoading(false);
-          return { success: false, error: 'حسابك معطل. تواصل مع الإدارة.' };
+          return { success: false, error: 'حسابك معطل. تواصل مع الإدارة.', role: null };
         }
         api.createAuditLog({ actor_id: result.user.id, actor_name: profile?.full_name || email, actor_role: profile?.role || 'user', action: 'login_success', target_type: 'auth', details: { email } });
+        setOperationLoading(false);
+        return { success: true, role: profile?.role || 'driver' };
       }
       setOperationLoading(false);
-      return { success: true };
+      return { success: true, role: null };
     } catch (e: any) {
       setOperationLoading(false);
-      return { success: false, error: e.message || 'حدث خطأ' };
+      return { success: false, error: e.message || 'حدث خطأ', role: null };
     }
   }, [loadProfile]);
 
@@ -144,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (role === 'client') {
           profileUpdates.approval_status = 'approved';
           profileUpdates.is_active = true;
+          // Ensure role is set correctly before loading profile
           await api.updateUserProfile(result.user.id, profileUpdates);
           // Create client entry
           try {
@@ -160,10 +163,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await api.signOutUser();
           setAuthUser(null);
           setUser(null);
-        } else if (role === 'client') {
-          setAuthUser(result.user);
-          await loadProfile(result.user.id);
         } else {
+          // For client, admin, supervisor — keep logged in and reload profile
+          // Important: profile is reloaded AFTER role update to ensure correct role
           setAuthUser(result.user);
           await loadProfile(result.user.id);
         }
