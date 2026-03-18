@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -125,6 +125,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const authContext = useContext(AuthContext);
   const userId = authContext?.user?.id;
   const profile = authContext?.user || null;
+
+  // Refs to break circular initialization dependencies (TDZ issues with const + useCallback)
+  const confirmTripRef = useRef<(tripId: string, driverId: string) => Promise<{ error: string | null }>>(async () => ({ error: 'not initialized' }));
+  const logAuditActionRef = useRef<(action: string, targetType: string, targetId?: string, details?: Record<string, any>) => Promise<void>>(async () => {});
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [earnings, setEarnings] = useState<Earning[]>([]);
@@ -318,7 +322,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTrips(prev => prev.map(t => t.id === tripId ? { ...t, status: 'archived' as const } : t));
   }, []);
 
-  // === IMPORTANT: logAuditAction must be defined FIRST — used by many functions below ===
+  // === logAuditAction — uses ref for safe cross-reference ===
   const logAuditAction = useCallback(async (action: string, targetType: string, targetId?: string, details?: Record<string, any>) => {
     if (!userId || !profile) return;
     await api.createAuditLog({
@@ -329,7 +333,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [userId, profile]);
 
-  // === confirmTrip must be defined BEFORE handleNotificationAction which depends on it ===
+  // Keep ref in sync
+  useEffect(() => { logAuditActionRef.current = logAuditAction; }, [logAuditAction]);
+
+  // === confirmTrip — uses ref for safe cross-reference ===
   const confirmTrip = useCallback(async (tripId: string, driverId: string) => {
     const result = await api.updateTrip(tripId, { status: 'confirmed', driver_id: driverId });
     if (result.error) return { error: result.error };
@@ -345,14 +352,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       api.sendPushToUser(driverId, 'تم الاتفاق على مشوار', `المشوار: ${trip.pickup_location} \u2192 ${trip.dropoff_location}`);
     }
-    logAuditAction('confirm_trip', 'trip', tripId, { driver_id: driverId, price: trip?.price });
+    logAuditActionRef.current('confirm_trip', 'trip', tripId, { driver_id: driverId, price: trip?.price });
     return { error: null };
-  }, [trips, logAuditAction]);
+  }, [trips]);
 
-  // === handleNotificationAction AFTER confirmTrip — it depends on confirmTrip ===
+  // Keep ref in sync
+  useEffect(() => { confirmTripRef.current = confirmTrip; }, [confirmTrip]);
+
+  // === handleNotificationAction — uses confirmTripRef to avoid TDZ ===
   const handleNotificationAction = useCallback(async (notifId: string, action: string, data?: any) => {
     if (action === 'approve_driver_for_trip' && data?.tripId && data?.driverId) {
-      const result = await confirmTrip(data.tripId, data.driverId);
+      const result = await confirmTripRef.current(data.tripId, data.driverId);
       if (!result.error) {
         await api.createNotification({ user_id: data.driverId, title: 'تمت الموافقة على طلبك', body: 'وافق العميل على طلبك للمشوار. يمكنك البدء الآن.', type: 'trip_confirmed', is_read: false });
       }
@@ -363,7 +373,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await api.createNotification({ user_id: data.driverId, title: 'تم رفض طلبك', body: 'رفض العميل طلبك للمشوار. يمكنك التقدم لمشاوير أخرى.', type: 'trip_rejected', is_read: false });
       }
     }
-  }, [confirmTrip]);
+  }, []);
 
   const sendMessageAction = useCallback(async (content: string) => {
     if (!userId || !profile) return;
@@ -391,16 +401,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await api.createNotification({ user_id: driverId, title: 'تم قبول طلبك', body: 'تم قبول طلب التسجيل. يمكنك الآن تسجيل الدخول واستقبال المشاوير.', type: 'approval', is_read: false });
     api.sendPushToUser(driverId, 'تم قبول طلبك', 'يمكنك الآن تسجيل الدخول واستقبال المشاوير.');
     await api.getOrCreateWallet(driverId);
-    logAuditAction('approve_driver', 'driver', driverId, { driver_name: driver?.full_name });
-  }, [allDriversList, logAuditAction]);
+    logAuditActionRef.current('approve_driver', 'driver', driverId, { driver_name: driver?.full_name });
+  }, [allDriversList]);
 
   const rejectDriver = useCallback(async (driverId: string) => {
     const driver = allDriversList.find(d => d.id === driverId);
     await api.updateUserProfile(driverId, { approval_status: 'rejected', is_active: false });
     setAllDriversList(prev => prev.map(d => d.id === driverId ? { ...d, approval_status: 'rejected' as const, is_active: false } : d));
     await api.createNotification({ user_id: driverId, title: 'تم رفض طلبك', body: 'تم رفض طلب التسجيل. تواصل مع الإدارة لمزيد من المعلومات.', type: 'approval', is_read: false });
-    logAuditAction('reject_driver', 'driver', driverId, { driver_name: driver?.full_name });
-  }, [allDriversList, logAuditAction]);
+    logAuditActionRef.current('reject_driver', 'driver', driverId, { driver_name: driver?.full_name });
+  }, [allDriversList]);
 
   const addAnnouncement = useCallback(async (ann: any) => {
     const result = await api.createAnnouncement({ ...ann, created_by: userId });
@@ -556,9 +566,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await api.createNotification({ user_id: payment.driver_id, title: 'تم تأكيد استلام العمولة', body: 'تم تأكيد استلام العمولة بنجاح.', type: 'general', is_read: false });
       api.sendPushToUser(payment.driver_id, 'تم تأكيد استلام العمولة', 'تم تأكيد استلام العمولة بنجاح.');
     }
-    logAuditAction('confirm_commission', 'commission', paymentId, { driver_id: payment?.driver_id, amount: payment?.amount });
+    logAuditActionRef.current('confirm_commission', 'commission', paymentId, { driver_id: payment?.driver_id, amount: payment?.amount });
     return { error: null };
-  }, [userId, commissionPayments, logAuditAction]);
+  }, [userId, commissionPayments]);
 
   const rejectCommission = useCallback(async (paymentId: string) => {
     if (!userId) return { error: 'غير مسجل الدخول' };
@@ -600,9 +610,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAllWalletTransactions(prev => prev.map(t => t.id === txId ? { ...t, status: 'approved' as const } : t));
     await api.createNotification({ user_id: driverId, title: 'تم اعتماد شحن المحفظة', body: `تم اعتماد شحن المحفظة بمبلغ ${amount} ر.س. رصيدك الحالي محدث.`, type: 'general', is_read: false });
     api.sendPushToUser(driverId, 'تم اعتماد شحن المحفظة', `تم اعتماد شحن المحفظة بمبلغ ${amount} ر.س.`);
-    logAuditAction('approve_topup', 'wallet', txId, { driver_id: driverId, amount });
+    logAuditActionRef.current('approve_topup', 'wallet', txId, { driver_id: driverId, amount });
     return { error: null };
-  }, [userId, logAuditAction]);
+  }, [userId]);
 
   const rejectTopUp = useCallback(async (txId: string) => {
     if (!userId) return { error: 'غير مسجل الدخول' };
