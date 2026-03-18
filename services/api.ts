@@ -38,6 +38,12 @@ export async function signOutUser() {
   return { error: error?.message || null };
 }
 
+export async function resetPasswordWithOTP(email: string, newPassword: string) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) return { error: error.message };
+  return { error: null };
+}
+
 // ===== User Profiles =====
 export async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase.from('user_profiles').select('*').eq('id', userId).single();

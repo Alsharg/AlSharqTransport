@@ -7,18 +7,26 @@ import { useAlert } from '@/template';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { theme, typography, spacing } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
-import { getRoleLabel } from '../services/types';
 
 type PortalType = 'driver' | 'admin' | 'client';
+type ScreenMode = 'portal' | 'login' | 'forgot_email' | 'forgot_otp' | 'forgot_newpass';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
-  const { login, operationLoading, isLoggedIn, userRole } = useAuth();
+  const { login, sendOTP, verifyOTPForReset, resetPassword, operationLoading, isLoggedIn, userRole } = useAuth();
+  const [mode, setMode] = useState<ScreenMode>('portal');
   const [selectedPortal, setSelectedPortal] = useState<PortalType | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Forgot password state
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   if (isLoggedIn) {
     if (userRole === 'admin' || userRole === 'supervisor') router.replace('/admin');
@@ -34,11 +42,68 @@ export default function LoginScreen() {
     }
     const result = await login(email.trim(), password);
     if (result.success) {
-      // After login, route based on the actual role from DB — not the selected portal
       router.replace('/');
     } else {
       showAlert('خطأ في الدخول', result.error || 'حدث خطأ');
     }
+  };
+
+  const handleForgotSendOTP = async () => {
+    if (!forgotEmail.trim()) {
+      showAlert('خطأ', 'يرجى إدخال البريد الإلكتروني');
+      return;
+    }
+    const result = await sendOTP(forgotEmail.trim());
+    if (result.success) {
+      setMode('forgot_otp');
+      showAlert('تم الإرسال', 'تم إرسال رمز التحقق إلى بريدك الإلكتروني');
+    } else {
+      showAlert('خطأ', result.error || 'فشل إرسال رمز التحقق');
+    }
+  };
+
+  const handleForgotVerifyOTP = async () => {
+    if (!forgotOtp.trim() || forgotOtp.trim().length < 4) {
+      showAlert('خطأ', 'يرجى إدخال رمز التحقق المكون من 4 أرقام');
+      return;
+    }
+    const result = await verifyOTPForReset(forgotEmail.trim(), forgotOtp.trim());
+    if (result.success) {
+      setMode('forgot_newpass');
+    } else {
+      showAlert('خطأ', result.error || 'رمز التحقق غير صحيح');
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      showAlert('خطأ', 'كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      showAlert('خطأ', 'كلمتا المرور غير متطابقتين');
+      return;
+    }
+    const result = await resetPassword(newPassword);
+    if (result.success) {
+      showAlert('تم بنجاح', 'تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.', [
+        { text: 'حسناً', onPress: () => {
+          setMode('login');
+          setForgotEmail('');
+          setForgotOtp('');
+          setNewPassword('');
+          setConfirmNewPassword('');
+        }},
+      ]);
+    } else {
+      showAlert('خطأ', result.error || 'فشل تغيير كلمة المرور');
+    }
+  };
+
+  const goBackFromForgot = () => {
+    if (mode === 'forgot_newpass') setMode('forgot_otp');
+    else if (mode === 'forgot_otp') setMode('forgot_email');
+    else if (mode === 'forgot_email') setMode('login');
   };
 
   const portals: { id: PortalType; icon: string; title: string; subtitle: string; color: string; gradient: string }[] = [
@@ -47,7 +112,8 @@ export default function LoginScreen() {
     { id: 'client', icon: 'person', title: 'بوابة العملاء', subtitle: 'طلب مشاوير وتتبع', color: '#8B5CF6', gradient: '#0D001A' },
   ];
 
-  if (!selectedPortal) {
+  // Portal selection screen
+  if (mode === 'portal') {
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.portalScroll} showsVerticalScrollIndicator={false}>
@@ -69,7 +135,7 @@ export default function LoginScreen() {
           {portals.map((portal, index) => (
             <Animated.View key={portal.id} entering={FadeInDown.duration(400).delay(300 + index * 100)}>
               <Pressable
-                onPress={() => setSelectedPortal(portal.id)}
+                onPress={() => { setSelectedPortal(portal.id); setMode('login'); }}
                 style={({ pressed }) => [styles.portalCard, { backgroundColor: portal.gradient, borderColor: portal.color + '30' }, pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }]}
               >
                 <View style={[styles.portalIconWrap, { backgroundColor: portal.color + '20' }]}>
@@ -93,15 +159,166 @@ export default function LoginScreen() {
     );
   }
 
-  const currentPortal = portals.find(p => p.id === selectedPortal)!;
+  const currentPortal = portals.find(p => p.id === selectedPortal) || portals[0];
 
+  // Forgot password screens
+  if (mode === 'forgot_email' || mode === 'forgot_otp' || mode === 'forgot_newpass') {
+    const forgotStep = mode === 'forgot_email' ? 1 : mode === 'forgot_otp' ? 2 : 3;
+    return (
+      <SafeAreaView style={styles.container}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <ScrollView contentContainerStyle={styles.loginScroll} showsVerticalScrollIndicator={false}>
+            {/* Header */}
+            <Animated.View entering={FadeInDown.duration(300)} style={styles.loginHeader}>
+              <Pressable onPress={goBackFromForgot} style={styles.backBtn}>
+                <MaterialIcons name="arrow-forward" size={24} color={theme.textPrimary} />
+              </Pressable>
+              <View style={[styles.portalBadge, { backgroundColor: '#EF4444' + '20', borderColor: '#EF4444' + '40' }]}>
+                <MaterialIcons name="lock-reset" size={16} color="#EF4444" />
+                <Text style={[styles.portalBadgeText, { color: '#EF4444' }]}>استعادة كلمة المرور</Text>
+              </View>
+            </Animated.View>
+
+            {/* Progress */}
+            <View style={styles.forgotProgress}>
+              {[1, 2, 3].map(s => (
+                <View key={s} style={[styles.forgotProgressDot, s <= forgotStep && styles.forgotProgressDotActive]} />
+              ))}
+            </View>
+
+            {mode === 'forgot_email' ? (
+              <Animated.View entering={FadeInDown.duration(400)}>
+                <View style={styles.loginHero}>
+                  <View style={[styles.loginLogoCircle, { backgroundColor: '#EF4444' + '15', borderColor: '#EF4444' + '30' }]}>
+                    <MaterialIcons name="email" size={44} color="#EF4444" />
+                  </View>
+                  <Text style={styles.loginTitle}>نسيت كلمة المرور؟</Text>
+                  <Text style={styles.loginSubtitle}>أدخل بريدك الإلكتروني لإرسال رمز التحقق</Text>
+                </View>
+
+                <View style={styles.formCard}>
+                  <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
+                  <View style={styles.inputRow}>
+                    <TextInput
+                      value={forgotEmail} onChangeText={setForgotEmail}
+                      placeholder="example@email.com" placeholderTextColor={theme.textMuted}
+                      style={styles.input} textAlign="right"
+                      keyboardType="email-address" autoCapitalize="none"
+                    />
+                    <MaterialIcons name="email" size={20} color={theme.textMuted} />
+                  </View>
+
+                  <Pressable
+                    onPress={handleForgotSendOTP} disabled={operationLoading}
+                    style={({ pressed }) => [styles.loginBtn, { backgroundColor: '#EF4444' }, pressed && { opacity: 0.9 }, operationLoading && { opacity: 0.6 }]}
+                  >
+                    {operationLoading ? <ActivityIndicator color="#FFF" /> : (
+                      <>
+                        <MaterialIcons name="send" size={20} color="#FFF" />
+                        <Text style={styles.loginBtnText}>إرسال رمز التحقق</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </Animated.View>
+            ) : mode === 'forgot_otp' ? (
+              <Animated.View entering={FadeInDown.duration(400)}>
+                <View style={styles.loginHero}>
+                  <View style={[styles.loginLogoCircle, { backgroundColor: theme.success + '15', borderColor: theme.success + '30' }]}>
+                    <MaterialIcons name="mark-email-read" size={44} color={theme.success} />
+                  </View>
+                  <Text style={styles.loginTitle}>تحقق من بريدك</Text>
+                  <Text style={styles.loginSubtitle}>أدخل رمز التحقق المرسل إلى {forgotEmail}</Text>
+                </View>
+
+                <View style={styles.formCard}>
+                  <Text style={styles.inputLabel}>رمز التحقق (4 أرقام)</Text>
+                  <TextInput
+                    value={forgotOtp} onChangeText={setForgotOtp}
+                    placeholder="0000" placeholderTextColor={theme.textMuted}
+                    style={[styles.otpInput]}
+                    keyboardType="number-pad" maxLength={4}
+                  />
+
+                  <Pressable onPress={handleForgotSendOTP} disabled={operationLoading} style={styles.resendRow}>
+                    <MaterialIcons name="refresh" size={16} color={theme.primary} />
+                    <Text style={styles.resendText}>إعادة إرسال الرمز</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleForgotVerifyOTP} disabled={operationLoading}
+                    style={({ pressed }) => [styles.loginBtn, { backgroundColor: theme.success }, pressed && { opacity: 0.9 }, operationLoading && { opacity: 0.6 }]}
+                  >
+                    {operationLoading ? <ActivityIndicator color="#FFF" /> : (
+                      <>
+                        <MaterialIcons name="verified" size={20} color="#FFF" />
+                        <Text style={styles.loginBtnText}>تأكيد الرمز</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </Animated.View>
+            ) : (
+              <Animated.View entering={FadeInDown.duration(400)}>
+                <View style={styles.loginHero}>
+                  <View style={[styles.loginLogoCircle, { backgroundColor: theme.primary + '15', borderColor: theme.primary + '30' }]}>
+                    <MaterialIcons name="lock" size={44} color={theme.primary} />
+                  </View>
+                  <Text style={styles.loginTitle}>كلمة مرور جديدة</Text>
+                  <Text style={styles.loginSubtitle}>أدخل كلمة المرور الجديدة</Text>
+                </View>
+
+                <View style={styles.formCard}>
+                  <Text style={styles.inputLabel}>كلمة المرور الجديدة</Text>
+                  <View style={styles.inputRow}>
+                    <TextInput
+                      value={newPassword} onChangeText={setNewPassword}
+                      placeholder="6 أحرف على الأقل" placeholderTextColor={theme.textMuted}
+                      style={styles.input} textAlign="right" secureTextEntry={!showNewPassword}
+                    />
+                    <Pressable onPress={() => setShowNewPassword(!showNewPassword)}>
+                      <MaterialIcons name={showNewPassword ? 'visibility' : 'visibility-off'} size={20} color={theme.textMuted} />
+                    </Pressable>
+                  </View>
+
+                  <Text style={styles.inputLabel}>تأكيد كلمة المرور</Text>
+                  <View style={styles.inputRow}>
+                    <TextInput
+                      value={confirmNewPassword} onChangeText={setConfirmNewPassword}
+                      placeholder="أعد كتابة كلمة المرور" placeholderTextColor={theme.textMuted}
+                      style={styles.input} textAlign="right" secureTextEntry
+                    />
+                    <MaterialIcons name="lock" size={20} color={theme.textMuted} />
+                  </View>
+
+                  <Pressable
+                    onPress={handleResetPassword} disabled={operationLoading}
+                    style={({ pressed }) => [styles.loginBtn, { backgroundColor: theme.primary }, pressed && { opacity: 0.9 }, operationLoading && { opacity: 0.6 }]}
+                  >
+                    {operationLoading ? <ActivityIndicator color="#FFF" /> : (
+                      <>
+                        <MaterialIcons name="check-circle" size={20} color="#FFF" />
+                        <Text style={styles.loginBtnText}>تغيير كلمة المرور</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </Animated.View>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  // Login screen
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.loginScroll} showsVerticalScrollIndicator={false}>
           {/* Back + Portal Header */}
           <Animated.View entering={FadeInDown.duration(300)} style={styles.loginHeader}>
-            <Pressable onPress={() => setSelectedPortal(null)} style={styles.backBtn}>
+            <Pressable onPress={() => { setMode('portal'); setSelectedPortal(null); }} style={styles.backBtn}>
               <MaterialIcons name="arrow-forward" size={24} color={theme.textPrimary} />
             </Pressable>
             <View style={[styles.portalBadge, { backgroundColor: currentPortal.color + '20', borderColor: currentPortal.color + '40' }]}>
@@ -143,6 +360,11 @@ export default function LoginScreen() {
                 <MaterialIcons name={showPassword ? 'visibility' : 'visibility-off'} size={20} color={theme.textMuted} />
               </Pressable>
             </View>
+
+            {/* Forgot password link */}
+            <Pressable onPress={() => setMode('forgot_email')} style={styles.forgotLink}>
+              <Text style={styles.forgotLinkText}>نسيت كلمة المرور؟</Text>
+            </Pressable>
 
             <Pressable
               onPress={handleLogin} disabled={operationLoading}
@@ -217,7 +439,7 @@ const styles = StyleSheet.create({
   loginHero: { alignItems: 'center', paddingBottom: 28 },
   loginLogoCircle: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   loginTitle: { fontSize: 26, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl' },
-  loginSubtitle: { fontSize: 14, fontWeight: '500', color: theme.textMuted, writingDirection: 'rtl', marginTop: 4 },
+  loginSubtitle: { fontSize: 14, fontWeight: '500', color: theme.textMuted, writingDirection: 'rtl', marginTop: 4, textAlign: 'center' },
   formCard: { backgroundColor: theme.surface, borderRadius: theme.radiusXL, padding: 24, borderWidth: 1, borderColor: theme.border },
   inputLabel: { fontSize: 13, fontWeight: '700', color: theme.textMuted, writingDirection: 'rtl', textAlign: 'right', marginBottom: 8, marginTop: 12 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.backgroundSecondary, borderRadius: theme.radiusMedium, paddingHorizontal: 14, paddingVertical: 14, borderWidth: 1.5, borderColor: theme.border },
@@ -228,4 +450,18 @@ const styles = StyleSheet.create({
   registerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   registerText: { fontSize: 14, fontWeight: '500', color: theme.textSecondary, writingDirection: 'rtl' },
   registerLink: { fontSize: 15, fontWeight: '700' },
+
+  // Forgot password
+  forgotLink: { alignSelf: 'flex-end', marginTop: 12, paddingVertical: 4, paddingHorizontal: 4 },
+  forgotLinkText: { fontSize: 13, fontWeight: '600', color: '#EF4444', writingDirection: 'rtl' },
+  forgotProgress: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 16 },
+  forgotProgressDot: { width: 32, height: 4, borderRadius: 2, backgroundColor: theme.border },
+  forgotProgressDotActive: { backgroundColor: '#EF4444' },
+  otpInput: {
+    backgroundColor: theme.backgroundSecondary, borderWidth: 1.5, borderColor: theme.border,
+    borderRadius: theme.radiusMedium, paddingHorizontal: 14, paddingVertical: 16,
+    fontSize: 28, fontWeight: '700', color: theme.textPrimary, textAlign: 'center', letterSpacing: 12,
+  },
+  resendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16, paddingVertical: 8 },
+  resendText: { fontSize: 14, fontWeight: '600', color: theme.primary, textDecorationLine: 'underline' },
 });

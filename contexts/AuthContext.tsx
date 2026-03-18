@@ -13,6 +13,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   sendOTP: (email: string) => Promise<{ success: boolean; error?: string }>;
   verifyOTPAndRegister: (email: string, otp: string, password: string, metadata: Record<string, string>, role: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOTPForReset: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
   registerDriver: (email: string, password: string, metadata: Record<string, string>) => Promise<{ success: boolean; error?: string }>;
   registerAdmin: (email: string, password: string, metadata: Record<string, string>, secretCode: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -69,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await api.signInWithPassword(email, password);
       if (result.error) {
         setOperationLoading(false);
+        api.createAuditLog({ actor_name: email, actor_role: 'unknown', action: 'login_failed', target_type: 'auth', details: { email, reason: result.error } });
         return { success: false, error: result.error };
       }
       if (result.user) {
@@ -88,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setOperationLoading(false);
           return { success: false, error: 'حسابك معطل. تواصل مع الإدارة.' };
         }
+        api.createAuditLog({ actor_id: result.user.id, actor_name: profile?.full_name || email, actor_role: profile?.role || 'user', action: 'login_success', target_type: 'auth', details: { email } });
       }
       setOperationLoading(false);
       return { success: true };
@@ -119,7 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: result.error };
       }
       if (result.user) {
-        // Update profile with metadata
         const profileUpdates: any = {
           full_name: metadata.full_name || '',
           phone: metadata.phone || '',
@@ -130,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (metadata.license_number) profileUpdates.license_number = metadata.license_number;
         if (metadata.nationality) profileUpdates.nationality = metadata.nationality;
         if (metadata.car_model) profileUpdates.car_model = metadata.car_model;
+        if (metadata.username) profileUpdates.username = metadata.username;
         if (role === 'admin' || role === 'supervisor') {
           profileUpdates.approval_status = 'approved';
           profileUpdates.is_active = true;
@@ -137,20 +141,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await api.updateUserProfile(result.user.id, profileUpdates);
 
         if (role === 'driver') {
-          // Sign out driver so they wait for approval
           await api.signOutUser();
           setAuthUser(null);
           setUser(null);
         } else if (role === 'client') {
-          // Client — auto-approve and keep logged in
           await api.updateUserProfile(result.user.id, { approval_status: 'approved', is_active: true });
           setAuthUser(result.user);
           await loadProfile(result.user.id);
         } else {
-          // Admin/Supervisor - keep logged in
           setAuthUser(result.user);
           await loadProfile(result.user.id);
         }
+        api.createAuditLog({ actor_id: result.user.id, actor_name: metadata.full_name || email, actor_role: role, action: 'register', target_type: 'auth', details: { email, role } });
       }
       setOperationLoading(false);
       return { success: true };
@@ -159,6 +161,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: e.message || 'حدث خطأ' };
     }
   }, [loadProfile]);
+
+  const verifyOTPForReset = useCallback(async (email: string, otp: string) => {
+    setOperationLoading(true);
+    try {
+      const result = await api.verifyOTPAndLogin(email, otp);
+      if (result.error) {
+        setOperationLoading(false);
+        return { success: false, error: result.error };
+      }
+      if (result.user) {
+        setAuthUser(result.user);
+        api.createAuditLog({ actor_id: result.user.id, actor_name: email, actor_role: 'user', action: 'verify_otp_reset', target_type: 'auth', details: { email } });
+      }
+      setOperationLoading(false);
+      return { success: true };
+    } catch (e: any) {
+      setOperationLoading(false);
+      return { success: false, error: e.message || 'حدث خطأ' };
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (newPassword: string) => {
+    setOperationLoading(true);
+    try {
+      const result = await api.resetPasswordWithOTP('', newPassword);
+      if (result.error) {
+        setOperationLoading(false);
+        return { success: false, error: result.error };
+      }
+      const currentEmail = authUser?.email || '';
+      await api.signOutUser();
+      setAuthUser(null);
+      setUser(null);
+      setOperationLoading(false);
+      api.createAuditLog({ actor_name: currentEmail || 'user', actor_role: 'user', action: 'reset_password', target_type: 'auth', details: { email: currentEmail } });
+      return { success: true };
+    } catch (e: any) {
+      setOperationLoading(false);
+      return { success: false, error: e.message || 'حدث خطأ' };
+    }
+  }, [authUser]);
 
   const registerDriver = useCallback(async (email: string, password: string, metadata: Record<string, string>) => {
     setOperationLoading(true);
@@ -218,10 +261,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    const currentUser = user;
+    if (currentUser) {
+      api.createAuditLog({ actor_id: currentUser.id, actor_name: currentUser.full_name || currentUser.email, actor_role: currentUser.role, action: 'logout', target_type: 'auth', details: {} });
+    }
     await api.signOutUser();
     setAuthUser(null);
     setUser(null);
-  }, []);
+  }, [user]);
 
   const refreshProfile = useCallback(async () => {
     if (authUser?.id) {
@@ -240,6 +287,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       sendOTP,
       verifyOTPAndRegister,
+      verifyOTPForReset,
+      resetPassword,
       registerDriver,
       registerAdmin,
       logout,
