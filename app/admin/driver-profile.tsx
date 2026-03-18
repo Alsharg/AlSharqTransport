@@ -21,12 +21,9 @@ export default function AdminDriverProfileScreen() {
   const { allDriversList, trips, earnings, toggleDriverActive, approveDriver, rejectDriver, logAuditAction, loadDrivers } = useApp();
 
   const driver = allDriversList.find(d => d.id === driverId);
-  const [activeTab, setActiveTab] = useState<'info' | 'trips' | 'ratings' | 'wallet' | 'logs'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'trips' | 'ratings' | 'logs'>('info');
   const [ratings, setRatings] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [walletData, setWalletData] = useState<any>(null);
-  const [walletTxs, setWalletTxs] = useState<any[]>([]);
-  const [levelModal, setLevelModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const driverTrips = trips.filter(t => t.driver_id === driverId);
@@ -38,8 +35,6 @@ export default function AdminDriverProfileScreen() {
     if (!driverId) return;
     api.fetchRatingsForUser(driverId).then(setRatings);
     api.fetchAuditLogs(50).then(logs => setAuditLogs(logs.filter((l: any) => l.target_id === driverId || l.actor_id === driverId)));
-    api.getOrCreateWallet(driverId).then(setWalletData);
-    api.fetchWalletTransactions(driverId).then(setWalletTxs);
   }, [driverId]);
 
   const handleToggle = useCallback(() => {
@@ -84,7 +79,6 @@ export default function AdminDriverProfileScreen() {
     { id: 'info' as const, label: 'المعلومات', icon: 'person' },
     { id: 'trips' as const, label: 'المشاوير', icon: 'route' },
     { id: 'ratings' as const, label: 'التقييمات', icon: 'star' },
-    { id: 'wallet' as const, label: 'المحفظة', icon: 'account-balance-wallet' },
     { id: 'logs' as const, label: 'السجل', icon: 'history' },
   ];
 
@@ -134,8 +128,6 @@ export default function AdminDriverProfileScreen() {
             <View style={styles.statItem}><Text style={[styles.statValue, { color: theme.accent }]}>{totalEarnings.toFixed(0)}</Text><Text style={styles.statLabel}>أرباح</Text></View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}><Text style={[styles.statValue, { color: theme.error }]}>{totalCommission.toFixed(0)}</Text><Text style={styles.statLabel}>عمولة</Text></View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}><Text style={[styles.statValue, { color: theme.success }]}>{walletData?.balance?.toFixed(0) || '0'}</Text><Text style={styles.statLabel}>الرصيد</Text></View>
           </View>
         </Animated.View>
 
@@ -222,31 +214,6 @@ export default function AdminDriverProfileScreen() {
                 </View>
                 {r.comment ? <Text style={styles.ratingComment}>{r.comment}</Text> : null}
                 <Text style={styles.ratingDate}>{new Date(r.created_at).toLocaleDateString('ar-SA')}</Text>
-              </View>
-            ))}
-          </Animated.View>
-        ) : null}
-
-        {activeTab === 'wallet' ? (
-          <Animated.View entering={FadeInDown.duration(300)} style={styles.section}>
-            <View style={styles.walletBalance}>
-              <Text style={styles.walletBalanceLabel}>الرصيد الحالي</Text>
-              <Text style={styles.walletBalanceValue}>{walletData?.balance?.toFixed(0) || '0'} ر.س</Text>
-            </View>
-            {walletTxs.length === 0 ? (
-              <View style={styles.emptyTab}><MaterialIcons name="account-balance-wallet" size={40} color={theme.border} /><Text style={styles.emptyTabText}>لا توجد معاملات</Text></View>
-            ) : walletTxs.slice(0, 20).map((tx: any) => (
-              <View key={tx.id} style={styles.txRow}>
-                <View style={[styles.txIcon, { backgroundColor: tx.type === 'topup' ? theme.successLight : theme.errorLight }]}>
-                  <MaterialIcons name={tx.type === 'topup' ? 'add' : 'remove'} size={16} color={tx.type === 'topup' ? theme.success : theme.error} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.txDesc}>{tx.description}</Text>
-                  <Text style={styles.txDate}>{new Date(tx.created_at).toLocaleDateString('ar-SA')}</Text>
-                </View>
-                <Text style={[styles.txAmount, { color: tx.type === 'topup' ? theme.success : theme.error }]}>
-                  {tx.type === 'topup' ? '+' : '-'}{tx.amount} ر.س
-                </Text>
               </View>
             ))}
           </Animated.View>

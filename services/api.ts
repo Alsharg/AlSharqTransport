@@ -1,7 +1,7 @@
 import { getSupabaseClient } from '@/template';
 import {
   Trip, Earning, Announcement, Message as AppMessage, Notification as AppNotification,
-  BonusPenalty, UserProfile, TripApplication, CommissionPayment, Wallet, WalletTransaction,
+  BonusPenalty, UserProfile, TripApplication, CommissionPayment,
 } from './types';
 import { decode } from 'base64-arraybuffer';
 

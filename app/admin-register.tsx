@@ -35,6 +35,13 @@ export default function AdminRegisterScreen() {
       showAlert('خطأ', 'يرجى ملء جميع الحقول المطلوبة');
       return;
     }
+    if (phone.trim()) {
+      const phoneRegex = /^05\d{8}$/;
+      if (!phoneRegex.test(phone.trim())) {
+        showAlert('خطأ', 'رقم الجوال يجب أن يبدأ بـ 05 ويتكون من 10 أرقام');
+        return;
+      }
+    }
     if (password.length < 6) {
       showAlert('خطأ', 'كلمة المرور يجب أن تكون 6 أحرف على الأقل');
       return;

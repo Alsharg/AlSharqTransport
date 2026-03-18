@@ -19,7 +19,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { profile, availableTrips, activeTrips, completedTrips,
     todayEarnings, unreadNotifications, unreadMessages,
-    setDriverStatus, isDataLoading, getMyApplication, wallet, trips, tripApplications,
+    setDriverStatus, isDataLoading, getMyApplication, trips, tripApplications,
   } = useApp();
   const { t, tripStatus, tripType } = useLanguage();
 

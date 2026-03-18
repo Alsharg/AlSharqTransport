@@ -28,6 +28,11 @@ export default function ClientRegisterScreen() {
       showAlert('خطأ', 'يرجى ملء جميع الحقول الإلزامية');
       return false;
     }
+    const phoneRegex = /^05\d{8}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      showAlert('خطأ', 'رقم الجوال يجب أن يبدأ بـ 05 ويتكون من 10 أرقام');
+      return false;
+    }
     if (password.length < 6) { showAlert('خطأ', 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'); return false; }
     if (password !== confirmPassword) { showAlert('خطأ', 'كلمتا المرور غير متطابقتين'); return false; }
     return true;

@@ -62,7 +62,6 @@ export default function MoreScreen() {
     { id: '4', icon: 'chat-bubble-outline', label: t.chatWithAdmin, onPress: () => router.push('/chat'), showChevron: true },
     { id: '5', icon: 'notifications-none', label: t.notifications, onPress: () => router.push('/notifications'), showChevron: true },
     { id: '6', icon: 'history', label: t.tripHistory, onPress: () => router.push('/(tabs)/trips'), showChevron: true },
-    { id: '9', icon: 'account-balance-wallet', label: t.wallet, onPress: () => router.push('/wallet'), showChevron: true, color: theme.accent },
     { id: '10', icon: 'translate', label: t.changeLanguage, value: LANGUAGES.find(l => l.id === language)?.nativeLabel || '', onPress: () => setLangModalVisible(true), showChevron: true, color: '#8B5CF6' },
   ];
 

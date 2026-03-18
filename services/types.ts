@@ -155,29 +155,6 @@ export interface CommissionPayment {
   updated_at: string;
 }
 
-export interface Wallet {
-  id: string;
-  driver_id: string;
-  balance: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface WalletTransaction {
-  id: string;
-  wallet_id: string;
-  driver_id: string;
-  type: 'topup' | 'commission_deduction' | 'refund';
-  amount: number;
-  description: string;
-  receipt_url?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  reviewed_by?: string;
-  reviewed_at?: string;
-  trip_id?: string;
-  created_at: string;
-}
-
 export interface Rating {
   id: string;
   trip_id: string;
@@ -304,16 +281,6 @@ export const getCommissionStatusLabel = (status: CommissionPayment['status']): s
 export const getCommissionStatusColor = (status: CommissionPayment['status']): string => {
   const colors = { pending: '#F59E0B', receipt_uploaded: '#3B82F6', confirmed: '#22C55E', rejected: '#EF4444' };
   return colors[status] || '#64748B';
-};
-
-export const getWalletTransactionLabel = (type: WalletTransaction['type']): string => {
-  const labels = { topup: 'شحن المحفظة', commission_deduction: 'خصم عمولة', refund: 'استرداد' };
-  return labels[type] || type;
-};
-
-export const getWalletTransactionColor = (type: WalletTransaction['type']): string => {
-  const colors = { topup: '#22C55E', commission_deduction: '#EF4444', refund: '#3B82F6' };
-  return colors[type] || '#64748B';
 };
 
 export const formatTripNumber = (num?: number): string => {

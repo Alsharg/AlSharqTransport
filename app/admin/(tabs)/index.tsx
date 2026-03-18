@@ -66,7 +66,6 @@ export default function AdminDashboard() {
         { label: 'متابعة المشاوير', icon: 'route', route: '/admin/(tabs)/trips', badge: pendingApplications > 0 ? pendingApplications : availableCount },
         { label: 'مشوار جديد', icon: 'add-circle', route: '/admin/trip-form', badge: 0 },
         { label: 'التسعير الديناميكي', icon: 'attach-money', route: '/admin/pricing', badge: 0 },
-        { label: 'إيصالات المحفظة', icon: 'account-balance-wallet', route: '/admin/wallet-receipts', badge: 0 },
         { label: 'المساعد الذكي', icon: 'smart-toy', route: '/ai-assistant', badge: 0 },
       ],
     },

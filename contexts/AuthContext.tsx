@@ -140,12 +140,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         await api.updateUserProfile(result.user.id, profileUpdates);
 
+        // Create client record if registering as client
+        if (role === 'client') {
+          profileUpdates.approval_status = 'approved';
+          profileUpdates.is_active = true;
+          await api.updateUserProfile(result.user.id, profileUpdates);
+          // Create client entry
+          try {
+            const supabase = getSupabaseClient();
+            await supabase.from('clients').insert({
+              user_id: result.user.id,
+              company_name: metadata.company_name || '',
+              address: metadata.address || '',
+            });
+          } catch (e) { console.error('Client record creation error:', e); }
+        }
+
         if (role === 'driver') {
           await api.signOutUser();
           setAuthUser(null);
           setUser(null);
         } else if (role === 'client') {
-          await api.updateUserProfile(result.user.id, { approval_status: 'approved', is_active: true });
           setAuthUser(result.user);
           await loadProfile(result.user.id);
         } else {

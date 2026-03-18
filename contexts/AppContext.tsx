@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Trip, Earning, Announcement, Message, Notification, BonusPenalty, UserProfile, TripApplication, CommissionPayment, Wallet, WalletTransaction } from '../services/types';
+import { Trip, Earning, Announcement, Message, Notification, BonusPenalty, UserProfile, TripApplication, CommissionPayment } from '../services/types';
 import * as api from '../services/api';
 import { AuthContext } from './AuthContext';
 import { config } from '../constants/config';
@@ -69,14 +69,6 @@ interface AppContextType {
   getMyApplication: (tripId: string) => TripApplication | undefined;
   assignDriverToTrip: (tripId: string, driverId: string, applicationId: string) => Promise<{ error: string | null }>;
   loadApplications: () => Promise<void>;
-  wallet: Wallet | null;
-  walletTransactions: WalletTransaction[];
-  loadWallet: () => Promise<void>;
-  topUpWallet: (amount: number, base64Data: string, fileExt: string) => Promise<{ error: string | null }>;
-  allWalletTransactions: WalletTransaction[];
-  loadAllWalletTransactions: () => Promise<void>;
-  approveTopUp: (txId: string, driverId: string, amount: number) => Promise<{ error: string | null }>;
-  rejectTopUp: (txId: string) => Promise<{ error: string | null }>;
   acceptTripDirectly: (tripId: string) => Promise<{ error: string | null }>;
   commissionPayments: CommissionPayment[];
   loadCommissionPayments: () => Promise<void>;
@@ -139,9 +131,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [bonusPenalties, setBonusPenalties] = useState<BonusPenalty[]>([]);
   const [tripApplications, setTripApplications] = useState<TripApplication[]>([]);
   const [commissionPayments, setCommissionPayments] = useState<CommissionPayment[]>([]);
-  const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([]);
-  const [allWalletTransactions, setAllWalletTransactions] = useState<WalletTransaction[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
   useEffect(() => {
@@ -176,18 +165,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setBonusPenalties(bpData); setTripApplications(appsData);
       setCommissionPayments(commissionsData);
 
-      if (profile?.role === 'driver') {
-        const w = await api.getOrCreateWallet(userId);
-        setWallet(w);
-        const txs = await api.fetchWalletTransactions(userId);
-        setWalletTransactions(txs);
-      }
-
       if (profile?.role === 'admin' || profile?.role === 'supervisor') {
         const drivers = await api.fetchAllProfiles('driver');
         setAllDriversList(drivers);
-        const allTxs = await api.fetchAllWalletTransactions();
-        setAllWalletTransactions(allTxs);
       }
     } catch (e) { console.error('Load data error:', e); }
     setIsDataLoading(false);
@@ -200,18 +180,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loadCommissionPayments = useCallback(async () => { setCommissionPayments(await api.fetchCommissionPayments()); }, []);
   const loadApplications = useCallback(async () => { setTripApplications(await api.fetchTripApplications()); }, []);
 
-  const loadWallet = useCallback(async () => {
-    if (!userId) return;
-    const w = await api.getOrCreateWallet(userId);
-    setWallet(w);
-    const txs = await api.fetchWalletTransactions(userId);
-    setWalletTransactions(txs);
-  }, [userId]);
 
-  const loadAllWalletTransactions = useCallback(async () => {
-    const allTxs = await api.fetchAllWalletTransactions();
-    setAllWalletTransactions(allTxs);
-  }, []);
 
   const [pricingConfigs, setPricingConfigs] = useState<any[]>([]);
   useEffect(() => { api.fetchPricingConfigs().then(setPricingConfigs); }, []);
@@ -400,7 +369,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAllDriversList(prev => prev.map(d => d.id === driverId ? { ...d, approval_status: 'approved' as const, is_active: true } : d));
     await api.createNotification({ user_id: driverId, title: 'تم قبول طلبك', body: 'تم قبول طلب التسجيل. يمكنك الآن تسجيل الدخول واستقبال المشاوير.', type: 'approval', is_read: false });
     api.sendPushToUser(driverId, 'تم قبول طلبك', 'يمكنك الآن تسجيل الدخول واستقبال المشاوير.');
-    await api.getOrCreateWallet(driverId);
     logAuditActionRef.current('approve_driver', 'driver', driverId, { driver_name: driver?.full_name });
   }, [allDriversList]);
 
@@ -582,50 +550,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }, [userId, commissionPayments]);
 
-  // Wallet top-up
-  const topUpWallet = useCallback(async (amount: number, base64Data: string, fileExt: string) => {
-    if (!userId || !wallet) return { error: 'غير مسجل الدخول' };
-    const uploadResult = await api.uploadWalletReceipt(userId, base64Data, fileExt);
-    if (uploadResult.error) return { error: uploadResult.error };
-    const txResult = await api.createWalletTransaction({
-      wallet_id: wallet.id, driver_id: userId, type: 'topup',
-      amount, description: `شحن المحفظة بمبلغ ${amount} ر.س`,
-      receipt_url: uploadResult.url!, status: 'pending',
-    });
-    if (txResult.error) return { error: txResult.error };
-    setWalletTransactions(prev => [txResult.data!, ...prev]);
-    await api.notifyAdmins('طلب شحن محفظة', `${profile?.full_name || 'سائق'} طلب شحن المحفظة بمبلغ ${amount} ر.س. يرجى مراجعة الإيصال.`, 'general');
-    return { error: null };
-  }, [userId, wallet, profile]);
-
-  const approveTopUp = useCallback(async (txId: string, driverId: string, amount: number) => {
-    if (!userId) return { error: 'غير مسجل الدخول' };
-    const result = await api.updateWalletTransaction(txId, { status: 'approved', reviewed_by: userId, reviewed_at: new Date().toISOString() });
-    if (result.error) return { error: result.error };
-    const driverWallet = await api.getOrCreateWallet(driverId);
-    if (driverWallet) {
-      const newBal = Number(driverWallet.balance) + amount;
-      await api.updateWalletBalance(driverWallet.id, newBal);
-    }
-    setAllWalletTransactions(prev => prev.map(t => t.id === txId ? { ...t, status: 'approved' as const } : t));
-    await api.createNotification({ user_id: driverId, title: 'تم اعتماد شحن المحفظة', body: `تم اعتماد شحن المحفظة بمبلغ ${amount} ر.س. رصيدك الحالي محدث.`, type: 'general', is_read: false });
-    api.sendPushToUser(driverId, 'تم اعتماد شحن المحفظة', `تم اعتماد شحن المحفظة بمبلغ ${amount} ر.س.`);
-    logAuditActionRef.current('approve_topup', 'wallet', txId, { driver_id: driverId, amount });
-    return { error: null };
-  }, [userId]);
-
-  const rejectTopUp = useCallback(async (txId: string) => {
-    if (!userId) return { error: 'غير مسجل الدخول' };
-    const tx = allWalletTransactions.find(t => t.id === txId);
-    const result = await api.updateWalletTransaction(txId, { status: 'rejected', reviewed_by: userId, reviewed_at: new Date().toISOString() });
-    if (result.error) return { error: result.error };
-    setAllWalletTransactions(prev => prev.map(t => t.id === txId ? { ...t, status: 'rejected' as const } : t));
-    if (tx) {
-      await api.createNotification({ user_id: tx.driver_id, title: 'تم رفض طلب شحن المحفظة', body: 'تم رفض إيصال شحن المحفظة. يرجى إعادة التحويل ورفع إيصال صحيح.', type: 'general', is_read: false });
-    }
-    return { error: null };
-  }, [userId, allWalletTransactions]);
-
   const setDriverStatus = useCallback(async (status: string) => {
     if (!userId) return;
     await api.updateUserProfile(userId, { status });
@@ -645,8 +569,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       bonusPenalties, addBonusPenalty,
       tripApplications, applyForTrip: applyForTripAction, withdrawApplication: withdrawApplicationAction,
       getApplicationsForTrip, getMyApplication, assignDriverToTrip, loadApplications,
-      wallet, walletTransactions, loadWallet, topUpWallet,
-      allWalletTransactions, loadAllWalletTransactions, approveTopUp, rejectTopUp,
       acceptTripDirectly,
       commissionPayments, loadCommissionPayments, getCommissionForTrip,
       uploadReceipt, confirmCommission, rejectCommission,

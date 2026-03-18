@@ -28,7 +28,7 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: string }>
   onTrip: { label: 'مشغول', color: '#8B5CF6', icon: 'directions-car' },
 };
 
-const WHATSAPP_NUMBER = '966569559088';
+const WHATSAPP_NUMBER = '966569559088'; // 0569559088
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
 
 export default function DriverCardScreen() {

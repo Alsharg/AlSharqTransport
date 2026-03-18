@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { theme, typography } from '../../constants/theme';
 import { useApp } from '../../contexts/AppContext';
+import { useAuth } from '../../hooks/useAuth';
 import { config } from '../../constants/config';
 
 type Period = 'today' | 'week' | 'month' | 'total';
@@ -34,7 +35,7 @@ function ProgressRing({ progress, size = 140, strokeWidth = 8, color = theme.acc
 export default function EarningsScreen() {
   const insets = useSafeAreaInsets();
   const { todayEarnings, weekEarnings, monthEarnings, totalEarnings, earnings, completedTrips, profile } = useApp();
-  const { user } = require('../../hooks/useAuth').useAuth();
+  const { user } = useAuth();
   const [activePeriod, setActivePeriod] = useState<Period>('week');
 
   const getEarnings = () => {
