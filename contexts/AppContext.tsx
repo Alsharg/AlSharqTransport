@@ -209,21 +209,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAllWalletTransactions(allTxs);
   }, []);
 
-  const handleNotificationAction = useCallback(async (notifId: string, action: string, data?: any) => {
-    if (action === 'approve_driver_for_trip' && data?.tripId && data?.driverId) {
-      const result = await confirmTrip(data.tripId, data.driverId);
-      if (!result.error) {
-        await api.createNotification({ user_id: data.driverId, title: 'تمت الموافقة على طلبك', body: 'وافق العميل على طلبك للمشوار. يمكنك البدء الآن.', type: 'trip_confirmed', is_read: false });
-      }
-    } else if (action === 'reject_driver_for_trip' && data?.applicationId) {
-      await api.updateApplicationStatus(data.applicationId, 'rejected');
-      setTripApplications(prev => prev.map(a => a.id === data.applicationId ? { ...a, status: 'rejected' as const } : a));
-      if (data.driverId) {
-        await api.createNotification({ user_id: data.driverId, title: 'تم رفض طلبك', body: 'رفض العميل طلبك للمشوار. يمكنك التقدم لمشاوير أخرى.', type: 'trip_rejected', is_read: false });
-      }
-    }
-  }, [confirmTrip]);
-
   const [pricingConfigs, setPricingConfigs] = useState<any[]>([]);
   useEffect(() => { api.fetchPricingConfigs().then(setPricingConfigs); }, []);
 
@@ -333,6 +318,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTrips(prev => prev.map(t => t.id === tripId ? { ...t, status: 'archived' as const } : t));
   }, []);
 
+  // === IMPORTANT: logAuditAction must be defined FIRST — used by many functions below ===
   const logAuditAction = useCallback(async (action: string, targetType: string, targetId?: string, details?: Record<string, any>) => {
     if (!userId || !profile) return;
     await api.createAuditLog({
@@ -343,7 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [userId, profile]);
 
-  // Admin: Confirm trip (تم الاتفاق) — set status to confirmed and assign driver
+  // === confirmTrip must be defined BEFORE handleNotificationAction which depends on it ===
   const confirmTrip = useCallback(async (tripId: string, driverId: string) => {
     const result = await api.updateTrip(tripId, { status: 'confirmed', driver_id: driverId });
     if (result.error) return { error: result.error };
@@ -362,6 +348,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     logAuditAction('confirm_trip', 'trip', tripId, { driver_id: driverId, price: trip?.price });
     return { error: null };
   }, [trips, logAuditAction]);
+
+  // === handleNotificationAction AFTER confirmTrip — it depends on confirmTrip ===
+  const handleNotificationAction = useCallback(async (notifId: string, action: string, data?: any) => {
+    if (action === 'approve_driver_for_trip' && data?.tripId && data?.driverId) {
+      const result = await confirmTrip(data.tripId, data.driverId);
+      if (!result.error) {
+        await api.createNotification({ user_id: data.driverId, title: 'تمت الموافقة على طلبك', body: 'وافق العميل على طلبك للمشوار. يمكنك البدء الآن.', type: 'trip_confirmed', is_read: false });
+      }
+    } else if (action === 'reject_driver_for_trip' && data?.applicationId) {
+      await api.updateApplicationStatus(data.applicationId, 'rejected');
+      setTripApplications(prev => prev.map(a => a.id === data.applicationId ? { ...a, status: 'rejected' as const } : a));
+      if (data.driverId) {
+        await api.createNotification({ user_id: data.driverId, title: 'تم رفض طلبك', body: 'رفض العميل طلبك للمشوار. يمكنك التقدم لمشاوير أخرى.', type: 'trip_rejected', is_read: false });
+      }
+    }
+  }, [confirmTrip]);
 
   const sendMessageAction = useCallback(async (content: string) => {
     if (!userId || !profile) return;
