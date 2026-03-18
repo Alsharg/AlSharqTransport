@@ -5,7 +5,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, interpolate,
@@ -38,7 +37,7 @@ export default function DriverCardScreen() {
   const { driverId } = useLocalSearchParams<{ driverId?: string }>();
   const { profile } = useApp();
   const { user } = useAuth();
-  const cardRef = useRef<View>(null);
+
 
   // If driverId param exists, load that driver; otherwise use current driver profile
   const [driver, setDriver] = useState<UserProfile | null>(null);
@@ -98,18 +97,12 @@ export default function DriverCardScreen() {
 
   const shareCard = async () => {
     try {
-      // Temporarily flip to front for sharing
-      if (isFlipped) {
-        flipProgress.value = withTiming(0, { duration: 300 });
-        setIsFlipped(false);
-        await new Promise(r => setTimeout(r, 400));
-      }
-      if (!cardRef.current) return;
-      const uri = await captureRef(cardRef, { format: 'png', quality: 1 });
+      const text = `بطاقة كابتن - الشرق للنقل والتوصيل\n\nالاسم: ${driverName}\nالكود: ${driverCode}\nالسيارة: ${vehicleType}${carModel ? ` ${carModel}` : ''}\nاللوحة: ${vehiclePlate || '-'}\nالتقييم: ${rating} ⭐\nالمشاوير: ${totalTrips}\n\nللتواصل عبر واتساب:\nhttps://wa.me/${WHATSAPP_NUMBER}`;
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'مشاركة البطاقة الرقمية' });
+        await Sharing.shareAsync('data:text/plain;base64,' + btoa(unescape(encodeURIComponent(text))), { mimeType: 'text/plain', dialogTitle: 'مشاركة البطاقة الرقمية' });
       }
     } catch (e) {
+      // Fallback: just open share dialog isn't available
       console.error('Share error:', e);
     }
   };
@@ -170,7 +163,7 @@ export default function DriverCardScreen() {
         <Pressable onPress={handleFlip} style={styles.cardContainer}>
           {/* FRONT FACE */}
           <Animated.View style={[styles.cardFace, frontAnimatedStyle]}>
-            <View ref={cardRef} collapsable={false} style={styles.card}>
+            <View style={styles.card}>
               {/* Gold accent top */}
               <View style={styles.cardTopAccent}>
                 <View style={styles.accentGradient} />
