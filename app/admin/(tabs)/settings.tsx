@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Linking } from 'react-native';
+import { useAlert } from '@/template';
 import { theme, typography } from '../../../constants/theme';
 import { useApp } from '../../../contexts/AppContext';
 import { useAuth } from '../../../hooks/useAuth';
@@ -15,7 +16,9 @@ import { ADMIN_WHATSAPP } from '../../../constants/i18n';
 export default function AdminSettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { userRole, logout, user } = useAuth();
+  const { userRole, logout, user, deleteAccount } = useAuth();
+  const { showAlert } = useAlert();
+  const [deleting, setDeleting] = useState(false);
   const { announcements, bonusPenalties, messages, allDriversList } = useApp();
 
   const pendingDrivers = allDriversList.filter(d => d.approval_status === 'pending').length;
@@ -144,6 +147,45 @@ export default function AdminSettingsScreen() {
           </Pressable>
         </Animated.View>
 
+        <Animated.View entering={FadeInDown.duration(400).delay(450)}>
+          <Pressable
+            onPress={() => {
+              showAlert('حذف الحساب نهائياً', 'سيتم حذف حسابك وجميع بياناتك بشكل نهائي ولا يمكن التراجع. هل أنت متأكد؟', [
+                { text: 'إلغاء', style: 'cancel' },
+                {
+                  text: 'حذف نهائي',
+                  style: 'destructive',
+                  onPress: () => {
+                    showAlert('تأكيد أخير', 'هل أنت متأكد تماماً من حذف حسابك؟', [
+                      { text: 'لا', style: 'cancel' },
+                      {
+                        text: 'نعم، احذف حسابي',
+                        style: 'destructive',
+                        onPress: async () => {
+                          setDeleting(true);
+                          const result = await deleteAccount();
+                          if (result.success) { router.replace('/login'); }
+                          else { showAlert('خطأ', result.error || 'فشل حذف الحساب'); }
+                          setDeleting(false);
+                        },
+                      },
+                    ]);
+                  },
+                },
+              ]);
+            }}
+            disabled={deleting}
+            style={({ pressed }) => [styles.deleteAccountBtn, pressed && { opacity: 0.9 }, deleting && { opacity: 0.6 }]}
+          >
+            {deleting ? <ActivityIndicator color={theme.error} size="small" /> : (
+              <>
+                <MaterialIcons name="delete-forever" size={20} color={theme.error} />
+                <Text style={styles.deleteAccountText}>حذف الحساب نهائياً</Text>
+              </>
+            )}
+          </Pressable>
+        </Animated.View>
+
         <View style={styles.footer}>
           <Text style={styles.footerText}>الشرق للنقل والتوصيل</Text>
           <Text style={styles.footerVersion}>الإصدار {config.version}</Text>
@@ -193,4 +235,6 @@ const styles = StyleSheet.create({
   footer: { alignItems: 'center', paddingVertical: 24, gap: 4 },
   footerText: { ...typography.caption, writingDirection: 'rtl' },
   footerVersion: { fontSize: 11, fontWeight: '600', color: theme.textMuted },
+  deleteAccountBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, paddingVertical: 14, borderRadius: theme.radiusMedium, borderWidth: 1.5, borderColor: theme.error + '30', marginTop: 12 },
+  deleteAccountText: { fontSize: 14, fontWeight: '600', color: theme.error },
 });

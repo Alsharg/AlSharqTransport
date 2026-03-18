@@ -15,6 +15,7 @@ interface AuthContextType {
   verifyOTPAndRegister: (email: string, otp: string, password: string, metadata: Record<string, string>, role: string) => Promise<{ success: boolean; error?: string }>;
   verifyOTPForReset: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
   resetPassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  deleteAccount: () => Promise<{ success: boolean; error?: string }>;
   registerDriver: (email: string, password: string, metadata: Record<string, string>) => Promise<{ success: boolean; error?: string }>;
   registerAdmin: (email: string, password: string, metadata: Record<string, string>, secretCode: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -220,6 +221,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [authUser]);
 
+  const deleteAccount = useCallback(async () => {
+    setOperationLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account');
+      if (error) {
+        const { FunctionsHttpError } = await import('@supabase/supabase-js');
+        let errorMessage = error.message;
+        if (error instanceof FunctionsHttpError) {
+          try { const textContent = await error.context?.text(); errorMessage = textContent || error.message; } catch { errorMessage = error.message; }
+        }
+        setOperationLoading(false);
+        return { success: false, error: errorMessage };
+      }
+      await supabase.auth.signOut();
+      setAuthUser(null);
+      setUser(null);
+      setOperationLoading(false);
+      return { success: true };
+    } catch (e: any) {
+      setOperationLoading(false);
+      return { success: false, error: e.message || 'حدث خطأ' };
+    }
+  }, [supabase]);
+
   const registerDriver = useCallback(async (email: string, password: string, metadata: Record<string, string>) => {
     setOperationLoading(true);
     try {
@@ -306,6 +331,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       verifyOTPAndRegister,
       verifyOTPForReset,
       resetPassword,
+      deleteAccount,
       registerDriver,
       registerAdmin,
       logout,

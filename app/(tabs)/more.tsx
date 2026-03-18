@@ -14,15 +14,18 @@ import { config } from '../../constants/config';
 import { getDriverLevelLabel, getDriverLevelColor } from '../../services/types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { LANGUAGES, ADMIN_WHATSAPP, Language } from '../../constants/i18n';
-import { Linking, Modal } from 'react-native';
+import { Linking, Modal, ActivityIndicator } from 'react-native';
+import { useAlert } from '@/template';
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { profile, totalEarnings, announcements, setDriverStatus } = useApp();
-  const { logout, userRole } = useAuth();
+  const { logout, userRole, deleteAccount } = useAuth();
   const { t, language, setLanguage } = useLanguage();
+  const { showAlert } = useAlert();
   const [langModalVisible, setLangModalVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const isAvailable = profile?.status === 'available';
   const [tapCount, setTapCount] = useState(0);
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -169,6 +172,45 @@ export default function MoreScreen() {
           </Pressable>
         </Animated.View>
 
+        <Animated.View entering={FadeInDown.duration(400).delay(550)}>
+          <Pressable
+            onPress={() => {
+              showAlert('حذف الحساب نهائياً', 'سيتم حذف حسابك وجميع بياناتك بشكل نهائي ولا يمكن التراجع. هل أنت متأكد؟', [
+                { text: 'إلغاء', style: 'cancel' },
+                {
+                  text: 'حذف نهائي',
+                  style: 'destructive',
+                  onPress: () => {
+                    showAlert('تأكيد أخير', 'هل أنت متأكد تماماً من حذف حسابك؟', [
+                      { text: 'لا', style: 'cancel' },
+                      {
+                        text: 'نعم، احذف حسابي',
+                        style: 'destructive',
+                        onPress: async () => {
+                          setDeleting(true);
+                          const result = await deleteAccount();
+                          if (result.success) { router.replace('/login'); }
+                          else { showAlert('خطأ', result.error || 'فشل حذف الحساب'); }
+                          setDeleting(false);
+                        },
+                      },
+                    ]);
+                  },
+                },
+              ]);
+            }}
+            disabled={deleting}
+            style={({ pressed }) => [styles.deleteAccountBtn, pressed && { opacity: 0.9 }, deleting && { opacity: 0.6 }]}
+          >
+            {deleting ? <ActivityIndicator color={theme.error} size="small" /> : (
+              <>
+                <MaterialIcons name="delete-forever" size={20} color={theme.error} />
+                <Text style={styles.deleteAccountText}>حذف الحساب نهائياً</Text>
+              </>
+            )}
+          </Pressable>
+        </Animated.View>
+
         <Pressable onPress={handleLogoTap} style={styles.footer}>
           <Text style={styles.footerText}>{t.appName}</Text>
           <Text style={styles.footerVersion}>{t.version} {config.version}</Text>
@@ -238,6 +280,8 @@ const styles = StyleSheet.create({
   footerText: { ...typography.caption, writingDirection: 'rtl' },
   footerVersion: { fontSize: 11, fontWeight: '600', color: theme.textMuted },
   tapHint: { fontSize: 11, fontWeight: '600', color: theme.accent, marginTop: 4, writingDirection: 'rtl' },
+  deleteAccountBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, paddingVertical: 14, borderRadius: theme.radiusMedium, borderWidth: 1.5, borderColor: theme.error + '30', marginTop: 12 },
+  deleteAccountText: { fontSize: 14, fontWeight: '600', color: theme.error },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: theme.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 24, paddingBottom: 40 },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: theme.border, alignSelf: 'center', marginTop: 12, marginBottom: 20 },
