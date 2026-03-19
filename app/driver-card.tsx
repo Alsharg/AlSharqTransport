@@ -1,14 +1,13 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Platform, Linking, Dimensions,
+  View, Text, Pressable, StyleSheet, Platform, Linking, Dimensions, Share, ScrollView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import * as Sharing from 'expo-sharing';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, interpolate,
-  Easing, FadeInDown,
+  Easing, FadeInDown, FadeInUp,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
@@ -19,16 +18,16 @@ import { getDriverLevelLabel, getDriverLevelColor, UserProfile } from '../servic
 import * as api from '../services/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = Math.min(SCREEN_WIDTH - 48, 380);
-const CARD_HEIGHT = CARD_WIDTH * 1.45;
+const CARD_WIDTH = Math.min(SCREEN_WIDTH - 40, 390);
+const CARD_HEIGHT = CARD_WIDTH * 1.52;
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: string }> = {
   available: { label: 'متاح', color: '#22C55E', icon: 'check-circle' },
   unavailable: { label: 'غير متاح', color: '#94A3B8', icon: 'pause-circle-filled' },
-  onTrip: { label: 'مشغول', color: '#8B5CF6', icon: 'directions-car' },
+  onTrip: { label: 'في مشوار', color: '#8B5CF6', icon: 'directions-car' },
 };
 
-const WHATSAPP_NUMBER = '966569559088'; // 0569559088
+const WHATSAPP_NUMBER = '966569559088';
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
 
 export default function DriverCardScreen() {
@@ -38,10 +37,9 @@ export default function DriverCardScreen() {
   const { profile } = useApp();
   const { user } = useAuth();
 
-
-  // If driverId param exists, load that driver; otherwise use current driver profile
   const [driver, setDriver] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showCarPhotos, setShowCarPhotos] = useState(false);
 
   useEffect(() => {
     if (driverId) {
@@ -55,7 +53,6 @@ export default function DriverCardScreen() {
     }
   }, [driverId, profile]);
 
-  // Auto-refresh every 30s
   useEffect(() => {
     const interval = setInterval(() => {
       if (driverId) {
@@ -95,14 +92,18 @@ export default function DriverCardScreen() {
     };
   });
 
+  const shareViaWhatsApp = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const text = `🚗 *بطاقة كابتن — الشرق درايفر*\n\n👤 الاسم: ${driverName}\n🆔 الكود: ${driverCode}\n🚘 السيارة: ${vehicleType}${carModel ? ` — ${carModel}` : ''}\n🔢 اللوحة: ${vehiclePlate || '-'}\n⭐ التقييم: ${rating}\n📊 المشاوير: ${totalTrips}\n🏅 المستوى: ${levelLabel}\n🌍 الجنسية: ${nationality}\n\n📞 للتواصل: ${phone}\n💬 واتساب: ${WHATSAPP_URL}\n\n— الشرق للنقل والتوصيل`;
+    Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`).catch(() => {});
+  };
+
   const shareCard = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const text = `🚗 بطاقة كابتن — الشرق درايفر\n\n👤 الاسم: ${driverName}\n🆔 الكود: ${driverCode}\n🚘 السيارة: ${vehicleType}${carModel ? ` — ${carModel}` : ''}\n🔢 اللوحة: ${vehiclePlate || '-'}\n⭐ التقييم: ${rating}\n📊 المشاوير: ${totalTrips}\n🏅 المستوى: ${levelLabel}\n🌍 الجنسية: ${nationality}\n\n📞 للتواصل: ${phone}\n💬 واتساب: ${WHATSAPP_URL}\n\n— الشرق للنقل والتوصيل`;
     try {
-      const text = `بطاقة كابتن - الشرق للنقل والتوصيل\n\nالاسم: ${driverName}\nالكود: ${driverCode}\nالسيارة: ${vehicleType}${carModel ? ` ${carModel}` : ''}\nاللوحة: ${vehiclePlate || '-'}\nالتقييم: ${rating} ⭐\nالمشاوير: ${totalTrips}\n\nللتواصل عبر واتساب:\nhttps://wa.me/${WHATSAPP_NUMBER}`;
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync('data:text/plain;base64,' + btoa(unescape(encodeURIComponent(text))), { mimeType: 'text/plain', dialogTitle: 'مشاركة البطاقة الرقمية' });
-      }
+      await Share.share({ message: text, title: `بطاقة كابتن ${driverName}` });
     } catch (e) {
-      // Fallback: just open share dialog isn't available
       console.error('Share error:', e);
     }
   };
@@ -137,7 +138,9 @@ export default function DriverCardScreen() {
   const nationality = driver.nationality || 'غير محدد';
   const phone = driver.phone || 'غير مسجل';
   const licenseNumber = driver.license_number || 'غير مسجل';
+  const residenceNumber = (driver as any).residence_number || '';
   const hasAvatar = !!driver.avatar_url;
+  const carPhotos: string[] = Array.isArray((driver as any).car_photos) ? (driver as any).car_photos : [];
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
@@ -147,15 +150,15 @@ export default function DriverCardScreen() {
           <MaterialIcons name="arrow-forward" size={24} color={theme.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>البطاقة الرقمية</Text>
-        <Pressable onPress={shareCard} style={styles.shareBtn}>
-          <MaterialIcons name="share" size={20} color="#FFF" />
+        <Pressable onPress={shareCard} style={styles.shareHeaderBtn}>
+          <MaterialIcons name="ios-share" size={20} color="#FFF" />
         </Pressable>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', paddingVertical: 16, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
         {/* Flip hint */}
         <Animated.View entering={FadeInDown.duration(300)} style={styles.hintRow}>
-          <MaterialIcons name="touch-app" size={18} color={theme.textMuted} />
+          <MaterialIcons name="touch-app" size={16} color={theme.accent} />
           <Text style={styles.hintText}>اضغط على البطاقة لقلبها</Text>
         </Animated.View>
 
@@ -164,34 +167,33 @@ export default function DriverCardScreen() {
           {/* FRONT FACE */}
           <Animated.View style={[styles.cardFace, frontAnimatedStyle]}>
             <View style={styles.card}>
-              {/* Gold accent top */}
+              {/* Top accent gradient */}
               <View style={styles.cardTopAccent}>
-                <View style={styles.accentGradient} />
+                <View style={styles.accentBar} />
               </View>
 
-              {/* Status Badge - top right */}
-              <View style={[styles.statusBadge, { backgroundColor: status.color + '20', borderColor: status.color + '40' }]}>
-                <MaterialIcons name={status.icon as any} size={14} color={status.color} />
+              {/* Status Badge */}
+              <View style={[styles.statusBadge, { backgroundColor: status.color + '18', borderColor: status.color + '35' }]}>
+                <MaterialIcons name={status.icon as any} size={12} color={status.color} />
                 <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
               </View>
 
               {/* Brand */}
               <View style={styles.brandBar}>
-                <MaterialIcons name="local-shipping" size={16} color={theme.accent} />
-                <Text style={styles.brandName}>الشرق للنقل والتوصيل</Text>
+                <MaterialIcons name="local-shipping" size={14} color={theme.accent} />
+                <Text style={styles.brandName}>الشرق درايفر</Text>
               </View>
 
-              {/* Avatar Circle */}
+              {/* Avatar */}
               <View style={styles.avatarSection}>
                 <View style={styles.avatarOuter}>
                   <View style={styles.avatarInner}>
                     {hasAvatar ? (
                       <Image source={{ uri: driver.avatar_url }} style={styles.avatarImage} contentFit="cover" transition={200} />
                     ) : (
-                      <MaterialIcons name="person" size={44} color={theme.primary} />
+                      <MaterialIcons name="person" size={42} color={theme.primary} />
                     )}
                   </View>
-                  {/* Level badge on avatar */}
                   <View style={[styles.avatarLevelBadge, { backgroundColor: levelColor }]}>
                     <Text style={styles.avatarLevelText}>{level}</Text>
                   </View>
@@ -201,20 +203,22 @@ export default function DriverCardScreen() {
               {/* Name + Code */}
               <Text style={styles.driverName}>{driverName}</Text>
               <View style={styles.codeRow}>
-                <MaterialIcons name="qr-code-2" size={14} color={theme.accent} />
+                <View style={styles.qrBadge}>
+                  <MaterialIcons name="qr-code-2" size={13} color={theme.accent} />
+                </View>
                 <Text style={styles.codeText}>{driverCode}</Text>
               </View>
 
               {/* Info Grid */}
               <View style={styles.infoGrid}>
                 <View style={styles.infoItem}>
-                  <MaterialIcons name="flag" size={16} color={theme.textMuted} />
+                  <MaterialIcons name="flag" size={15} color={theme.accent} />
                   <Text style={styles.infoLabel}>الجنسية</Text>
                   <Text style={styles.infoValue}>{nationality}</Text>
                 </View>
                 <View style={styles.infoSeparator} />
                 <View style={styles.infoItem}>
-                  <MaterialIcons name="directions-car" size={16} color={theme.textMuted} />
+                  <MaterialIcons name="directions-car" size={15} color={theme.accent} />
                   <Text style={styles.infoLabel}>السيارة</Text>
                   <Text style={styles.infoValue} numberOfLines={1}>{vehicleType}{carModel ? ` ${carModel}` : ''}</Text>
                 </View>
@@ -223,19 +227,19 @@ export default function DriverCardScreen() {
               {/* Stats Bar */}
               <View style={styles.statsBar}>
                 <View style={styles.statBlock}>
-                  <MaterialIcons name="star" size={18} color="#FBBF24" />
+                  <MaterialIcons name="star" size={16} color="#FBBF24" />
                   <Text style={styles.statNum}>{rating}</Text>
                   <Text style={styles.statCaption}>التقييم</Text>
                 </View>
                 <View style={styles.statSep} />
                 <View style={styles.statBlock}>
-                  <MaterialIcons name="route" size={18} color={theme.primaryGlow} />
+                  <MaterialIcons name="route" size={16} color={theme.primaryGlow} />
                   <Text style={styles.statNum}>{totalTrips}</Text>
                   <Text style={styles.statCaption}>مشوار</Text>
                 </View>
                 <View style={styles.statSep} />
                 <View style={styles.statBlock}>
-                  <MaterialIcons name="military-tech" size={18} color={levelColor} />
+                  <MaterialIcons name="military-tech" size={16} color={levelColor} />
                   <Text style={[styles.statNum, { color: levelColor }]}>{levelLabel}</Text>
                   <Text style={styles.statCaption}>المستوى</Text>
                 </View>
@@ -259,97 +263,54 @@ export default function DriverCardScreen() {
           </Animated.View>
 
           {/* BACK FACE */}
-          <Animated.View style={[styles.cardFace, styles.cardFaceBack, backAnimatedStyle]}>
+          <Animated.View style={[styles.cardFace, backAnimatedStyle]}>
             <View style={styles.card}>
-              {/* Gold accent top */}
               <View style={styles.cardTopAccent}>
-                <View style={styles.accentGradient} />
+                <View style={styles.accentBar} />
               </View>
 
-              {/* Back header */}
               <View style={styles.backHeader}>
-                <MaterialIcons name="local-shipping" size={16} color={theme.accent} />
-                <Text style={styles.brandName}>بيانات الكابتن التفصيلية</Text>
+                <MaterialIcons name="badge" size={16} color={theme.accent} />
+                <Text style={styles.backHeaderTitle}>بيانات الكابتن التفصيلية</Text>
               </View>
 
-              {/* Phone */}
-              <View style={styles.backSection}>
-                <View style={styles.backRow}>
-                  <View style={[styles.backIcon, { backgroundColor: '#3B82F615' }]}>
-                    <MaterialIcons name="phone" size={20} color="#3B82F6" />
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 8 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+                {/* Details */}
+                {[
+                  { icon: 'phone', color: '#3B82F6', label: 'رقم الجوال', value: phone },
+                  { icon: 'email', color: '#8B5CF6', label: 'البريد الإلكتروني', value: driver.email },
+                  { icon: 'assignment-ind', color: '#F59E0B', label: 'رقم الرخصة', value: licenseNumber },
+                  { icon: 'credit-card', color: '#22C55E', label: 'رقم اللوحة', value: vehiclePlate || 'غير مسجل' },
+                  { icon: 'flag', color: '#EC4899', label: 'الجنسية', value: nationality },
+                  { icon: 'directions-car', color: '#14B8A6', label: 'السيارة', value: `${vehicleType}${carModel ? ` — ${carModel}` : ''}` },
+                  ...(residenceNumber ? [{ icon: 'badge', color: '#6366F1', label: 'رقم الإقامة', value: residenceNumber }] : []),
+                ].map((item, idx) => (
+                  <View key={idx} style={styles.backRow}>
+                    <View style={[styles.backIcon, { backgroundColor: item.color + '12' }]}>
+                      <MaterialIcons name={item.icon as any} size={18} color={item.color} />
+                    </View>
+                    <View style={styles.backRowContent}>
+                      <Text style={styles.backLabel}>{item.label}</Text>
+                      <Text style={styles.backValue}>{item.value}</Text>
+                    </View>
                   </View>
-                  <View style={styles.backRowContent}>
-                    <Text style={styles.backLabel}>رقم الجوال</Text>
-                    <Text style={styles.backValue}>{phone}</Text>
-                  </View>
-                </View>
+                ))}
 
-                <View style={styles.backRow}>
-                  <View style={[styles.backIcon, { backgroundColor: '#8B5CF615' }]}>
-                    <MaterialIcons name="email" size={20} color="#8B5CF6" />
+                {/* Bonuses/Penalties */}
+                <View style={styles.backStatsRow}>
+                  <View style={[styles.backStatCard, { borderColor: '#22C55E30' }]}>
+                    <MaterialIcons name="emoji-events" size={16} color="#22C55E" />
+                    <Text style={[styles.backStatValue, { color: '#22C55E' }]}>{Number(driver.bonuses || 0).toFixed(0)}</Text>
+                    <Text style={styles.backStatLabel}>مكافآت</Text>
                   </View>
-                  <View style={styles.backRowContent}>
-                    <Text style={styles.backLabel}>البريد الإلكتروني</Text>
-                    <Text style={styles.backValue}>{driver.email}</Text>
+                  <View style={[styles.backStatCard, { borderColor: '#EF444430' }]}>
+                    <MaterialIcons name="remove-circle" size={16} color="#EF4444" />
+                    <Text style={[styles.backStatValue, { color: '#EF4444' }]}>{Number(driver.penalties || 0).toFixed(0)}</Text>
+                    <Text style={styles.backStatLabel}>خصومات</Text>
                   </View>
                 </View>
+              </ScrollView>
 
-                <View style={styles.backRow}>
-                  <View style={[styles.backIcon, { backgroundColor: '#F59E0B15' }]}>
-                    <MaterialIcons name="assignment-ind" size={20} color="#F59E0B" />
-                  </View>
-                  <View style={styles.backRowContent}>
-                    <Text style={styles.backLabel}>رقم الرخصة</Text>
-                    <Text style={styles.backValue}>{licenseNumber}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.backRow}>
-                  <View style={[styles.backIcon, { backgroundColor: '#22C55E15' }]}>
-                    <MaterialIcons name="credit-card" size={20} color="#22C55E" />
-                  </View>
-                  <View style={styles.backRowContent}>
-                    <Text style={styles.backLabel}>رقم اللوحة</Text>
-                    <Text style={styles.backValue}>{vehiclePlate || 'غير مسجل'}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.backRow}>
-                  <View style={[styles.backIcon, { backgroundColor: '#EC489915' }]}>
-                    <MaterialIcons name="flag" size={20} color="#EC4899" />
-                  </View>
-                  <View style={styles.backRowContent}>
-                    <Text style={styles.backLabel}>الجنسية</Text>
-                    <Text style={styles.backValue}>{nationality}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.backRow}>
-                  <View style={[styles.backIcon, { backgroundColor: '#14B8A615' }]}>
-                    <MaterialIcons name="directions-car" size={20} color="#14B8A6" />
-                  </View>
-                  <View style={styles.backRowContent}>
-                    <Text style={styles.backLabel}>السيارة</Text>
-                    <Text style={styles.backValue}>{vehicleType}{carModel ? ` - ${carModel}` : ''}</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Bonuses/Penalties */}
-              <View style={styles.backStatsRow}>
-                <View style={[styles.backStatCard, { borderColor: '#22C55E30' }]}>
-                  <MaterialIcons name="emoji-events" size={18} color="#22C55E" />
-                  <Text style={[styles.backStatValue, { color: '#22C55E' }]}>{Number(driver.bonuses || 0).toFixed(0)}</Text>
-                  <Text style={styles.backStatLabel}>مكافآت</Text>
-                </View>
-                <View style={[styles.backStatCard, { borderColor: '#EF444430' }]}>
-                  <MaterialIcons name="remove-circle" size={18} color="#EF4444" />
-                  <Text style={[styles.backStatValue, { color: '#EF4444' }]}>{Number(driver.penalties || 0).toFixed(0)}</Text>
-                  <Text style={styles.backStatLabel}>خصومات</Text>
-                </View>
-              </View>
-
-              {/* Card Back Footer */}
               <View style={styles.cardFooter}>
                 <Text style={styles.footerLeft}>تاريخ الانضمام</Text>
                 <Text style={styles.footerRight}>{new Date(driver.created_at).toLocaleDateString('ar-SA')}</Text>
@@ -358,29 +319,45 @@ export default function DriverCardScreen() {
           </Animated.View>
         </Pressable>
 
-        {/* Bottom Section — WhatsApp + Share */}
-        <Animated.View entering={FadeInDown.duration(400).delay(200)} style={styles.bottomSection}>
-          <Text style={styles.supportText}>الشرق اللوجستية للدعم والاستفسارات</Text>
-
-          <View style={styles.bottomActions}>
-            <Pressable
-              onPress={openWhatsApp}
-              style={({ pressed }) => [styles.whatsappBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
-            >
-              <MaterialIcons name="chat" size={22} color="#FFF" />
-              <Text style={styles.whatsappBtnText}>تواصل عبر واتساب</Text>
+        {/* Car Photos Section */}
+        {carPhotos.length > 0 ? (
+          <Animated.View entering={FadeInDown.duration(400).delay(100)} style={styles.carPhotosSection}>
+            <Pressable onPress={() => setShowCarPhotos(!showCarPhotos)} style={styles.carPhotosHeader}>
+              <MaterialIcons name="photo-library" size={20} color={theme.accent} />
+              <Text style={styles.carPhotosTitle}>صور السيارة ({carPhotos.length})</Text>
+              <MaterialIcons name={showCarPhotos ? 'expand-less' : 'expand-more'} size={22} color={theme.textMuted} />
             </Pressable>
+            {showCarPhotos ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 4, paddingTop: 12 }}>
+                {carPhotos.map((url, i) => (
+                  <View key={i} style={styles.carPhotoWrap}>
+                    <Image source={{ uri: url }} style={styles.carPhoto} contentFit="cover" transition={200} />
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
+          </Animated.View>
+        ) : null}
 
-            <Pressable
-              onPress={shareCard}
-              style={({ pressed }) => [styles.shareCardBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
-            >
+        {/* Share Buttons */}
+        <Animated.View entering={FadeInUp.duration(400).delay(200)} style={styles.bottomSection}>
+          <View style={styles.shareRow}>
+            <Pressable onPress={shareViaWhatsApp} style={({ pressed }) => [styles.whatsappBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}>
+              <MaterialIcons name="chat" size={22} color="#FFF" />
+              <Text style={styles.whatsappBtnText}>مشاركة عبر واتساب</Text>
+            </Pressable>
+            <Pressable onPress={shareCard} style={({ pressed }) => [styles.shareAllBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}>
               <MaterialIcons name="share" size={20} color={theme.primary} />
-              <Text style={styles.shareCardBtnText}>مشاركة</Text>
             </Pressable>
           </View>
+
+          <Pressable onPress={openWhatsApp} style={({ pressed }) => [styles.contactBtn, pressed && { opacity: 0.85 }]}>
+            <MaterialIcons name="support-agent" size={20} color={theme.accent} />
+            <Text style={styles.contactBtnText}>تواصل مع الدعم</Text>
+            <MaterialIcons name="chevron-left" size={18} color={theme.textMuted} />
+          </Pressable>
         </Animated.View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -392,198 +369,148 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.surface,
   },
-  backBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: theme.backgroundSecondary, alignItems: 'center', justifyContent: 'center',
-  },
+  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.backgroundSecondary, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...typography.subtitle, writingDirection: 'rtl' as const },
-  shareBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center',
-  },
-
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  shareHeaderBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center' },
 
   hintRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginBottom: 16, paddingHorizontal: 16, paddingVertical: 8,
-    backgroundColor: theme.surface, borderRadius: theme.radiusFull,
-    borderWidth: 1, borderColor: theme.border,
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14,
+    paddingHorizontal: 16, paddingVertical: 8,
+    backgroundColor: theme.accent + '10', borderRadius: theme.radiusFull,
+    borderWidth: 1, borderColor: theme.accent + '25',
   },
-  hintText: { fontSize: 12, fontWeight: '600', color: theme.textMuted, writingDirection: 'rtl' as const },
+  hintText: { fontSize: 12, fontWeight: '600', color: theme.accent, writingDirection: 'rtl' as const },
 
-  // Card container
   cardContainer: { width: CARD_WIDTH, height: CARD_HEIGHT },
-  cardFace: {
-    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-  },
-  cardFaceBack: {
-    // Back face is initially rotated 180
-  },
+  cardFace: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
 
   card: {
-    flex: 1,
-    backgroundColor: theme.surface,
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: theme.accent + '30',
+    flex: 1, backgroundColor: theme.surface, borderRadius: 24, overflow: 'hidden',
+    borderWidth: 1.5, borderColor: theme.accent + '25',
     ...Platform.select({
-      ios: { shadowColor: theme.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 20 },
-      android: { elevation: 16 },
+      ios: { shadowColor: '#1A3B6D', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 24 },
+      android: { elevation: 12 },
     }),
   },
 
-  // Top accent
   cardTopAccent: { height: 5 },
-  accentGradient: {
-    flex: 1,
-    backgroundColor: theme.accent,
-  },
+  accentBar: { flex: 1, backgroundColor: theme.accent },
 
-  // Status badge
   statusBadge: {
-    position: 'absolute', top: 16, left: 16, zIndex: 10,
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: theme.radiusFull, borderWidth: 1,
+    position: 'absolute', top: 14, left: 14, zIndex: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: theme.radiusFull, borderWidth: 1,
   },
-  statusText: { fontSize: 11, fontWeight: '700' },
+  statusText: { fontSize: 10, fontWeight: '700' },
 
-  // Brand
-  brandBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingTop: 16, paddingBottom: 4,
-  },
-  brandName: { fontSize: 12, fontWeight: '700', color: theme.textMuted, writingDirection: 'rtl' as const },
+  brandBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 14, paddingBottom: 2 },
+  brandName: { fontSize: 11, fontWeight: '700', color: theme.textMuted, writingDirection: 'rtl' as const, letterSpacing: 0.5 },
 
-  // Avatar
-  avatarSection: { alignItems: 'center', paddingTop: 10, paddingBottom: 8 },
+  avatarSection: { alignItems: 'center', paddingTop: 8, paddingBottom: 6 },
   avatarOuter: {
-    width: 82, height: 82, borderRadius: 41,
-    borderWidth: 3, borderColor: theme.accent + '50',
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: theme.primary + '15',
+    width: 78, height: 78, borderRadius: 39, borderWidth: 3, borderColor: theme.accent + '40',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: theme.primary + '10',
   },
   avatarInner: {
-    width: 74, height: 74, borderRadius: 37,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: theme.primary + '20',
-    overflow: 'hidden',
+    width: 70, height: 70, borderRadius: 35, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: theme.primary + '15', overflow: 'hidden',
   },
-  avatarImage: { width: 74, height: 74, borderRadius: 37 },
+  avatarImage: { width: 70, height: 70, borderRadius: 35 },
   avatarLevelBadge: {
-    position: 'absolute', bottom: -2, right: -2,
-    width: 26, height: 26, borderRadius: 13,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2.5, borderColor: theme.surface,
+    position: 'absolute', bottom: -2, right: -2, width: 24, height: 24, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: theme.surface,
   },
-  avatarLevelText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+  avatarLevelText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
 
-  // Name + Code
-  driverName: {
-    fontSize: 20, fontWeight: '700', color: theme.textPrimary,
-    textAlign: 'center', writingDirection: 'rtl' as const,
-  },
-  codeRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4,
-  },
-  codeText: { fontSize: 14, fontWeight: '700', color: theme.accent, letterSpacing: 1 },
+  driverName: { fontSize: 19, fontWeight: '700', color: theme.textPrimary, textAlign: 'center', writingDirection: 'rtl' as const },
+  codeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 3 },
+  qrBadge: { width: 22, height: 22, borderRadius: 6, backgroundColor: theme.accent + '12', alignItems: 'center', justifyContent: 'center' },
+  codeText: { fontSize: 13, fontWeight: '700', color: theme.accent, letterSpacing: 1 },
 
-  // Info grid
   infoGrid: {
     flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 20, marginTop: 12, paddingVertical: 12,
+    marginHorizontal: 18, marginTop: 10, paddingVertical: 10,
     borderTopWidth: 1, borderTopColor: theme.borderLight,
   },
-  infoItem: { flex: 1, alignItems: 'center', gap: 3 },
-  infoSeparator: { width: 1, height: 36, backgroundColor: theme.borderLight },
-  infoLabel: { fontSize: 10, fontWeight: '600', color: theme.textMuted },
-  infoValue: { fontSize: 13, fontWeight: '700', color: theme.textPrimary, textAlign: 'center', writingDirection: 'rtl' as const },
+  infoItem: { flex: 1, alignItems: 'center', gap: 2 },
+  infoSeparator: { width: 1, height: 32, backgroundColor: theme.borderLight },
+  infoLabel: { fontSize: 9, fontWeight: '600', color: theme.textMuted },
+  infoValue: { fontSize: 12, fontWeight: '700', color: theme.textPrimary, textAlign: 'center', writingDirection: 'rtl' as const },
 
-  // Stats bar
   statsBar: {
     flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
-    marginHorizontal: 20, paddingVertical: 12,
-    borderTopWidth: 1, borderTopColor: theme.borderLight,
+    marginHorizontal: 18, paddingVertical: 10, borderTopWidth: 1, borderTopColor: theme.borderLight,
   },
-  statBlock: { alignItems: 'center', gap: 3 },
-  statNum: { fontSize: 15, fontWeight: '700', color: theme.textPrimary },
-  statCaption: { fontSize: 9, fontWeight: '600', color: theme.textMuted },
-  statSep: { width: 1, height: 32, backgroundColor: theme.borderLight },
+  statBlock: { alignItems: 'center', gap: 2 },
+  statNum: { fontSize: 14, fontWeight: '700', color: theme.textPrimary },
+  statCaption: { fontSize: 8, fontWeight: '600', color: theme.textMuted },
+  statSep: { width: 1, height: 28, backgroundColor: theme.borderLight },
 
-  // Plate
-  plateRow: { alignItems: 'center', paddingVertical: 8 },
+  plateRow: { alignItems: 'center', paddingVertical: 6 },
   plateBox: {
-    backgroundColor: theme.backgroundSecondary,
-    paddingHorizontal: 20, paddingVertical: 6,
+    backgroundColor: theme.backgroundSecondary, paddingHorizontal: 18, paddingVertical: 5,
     borderRadius: 8, borderWidth: 1, borderColor: theme.border,
   },
-  plateText: { fontSize: 14, fontWeight: '700', color: theme.textPrimary, letterSpacing: 2 },
+  plateText: { fontSize: 13, fontWeight: '700', color: theme.textPrimary, letterSpacing: 2 },
 
-  // Card Footer
   cardFooter: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: theme.backgroundSecondary,
-    marginTop: 'auto',
+    paddingHorizontal: 16, paddingVertical: 9, backgroundColor: theme.backgroundSecondary, marginTop: 'auto',
   },
-  footerLeft: { fontSize: 10, fontWeight: '600', color: theme.textMuted },
-  footerRight: { fontSize: 10, fontWeight: '700', color: theme.accent, writingDirection: 'rtl' as const },
+  footerLeft: { fontSize: 9, fontWeight: '600', color: theme.textMuted },
+  footerRight: { fontSize: 9, fontWeight: '700', color: theme.accent, writingDirection: 'rtl' as const },
 
-  // ===== BACK FACE =====
-  backHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingTop: 16, paddingBottom: 12,
-  },
+  // === BACK ===
+  backHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingTop: 14, paddingBottom: 8 },
+  backHeaderTitle: { fontSize: 12, fontWeight: '700', color: theme.textMuted, writingDirection: 'rtl' as const },
 
-  backSection: {
-    paddingHorizontal: 16, gap: 2, flex: 1,
-  },
   backRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8,
     borderBottomWidth: 1, borderBottomColor: theme.borderLight,
   },
-  backIcon: {
-    width: 38, height: 38, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  backIcon: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   backRowContent: { flex: 1 },
-  backLabel: { fontSize: 10, fontWeight: '600', color: theme.textMuted, writingDirection: 'rtl' as const, textAlign: 'right' },
-  backValue: { fontSize: 14, fontWeight: '600', color: theme.textPrimary, writingDirection: 'rtl' as const, textAlign: 'right', marginTop: 1 },
+  backLabel: { fontSize: 9, fontWeight: '600', color: theme.textMuted, writingDirection: 'rtl' as const, textAlign: 'right' },
+  backValue: { fontSize: 13, fontWeight: '600', color: theme.textPrimary, writingDirection: 'rtl' as const, textAlign: 'right', marginTop: 1 },
 
-  backStatsRow: {
-    flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 10,
-  },
+  backStatsRow: { flexDirection: 'row', gap: 8, paddingVertical: 10 },
   backStatCard: {
-    flex: 1, alignItems: 'center', gap: 4,
-    paddingVertical: 12, borderRadius: theme.radiusMedium,
-    backgroundColor: theme.surfaceElevated, borderWidth: 1,
+    flex: 1, alignItems: 'center', gap: 3, paddingVertical: 10,
+    borderRadius: theme.radiusMedium, backgroundColor: theme.surfaceElevated, borderWidth: 1,
   },
-  backStatValue: { fontSize: 18, fontWeight: '700' },
-  backStatLabel: { fontSize: 10, fontWeight: '600', color: theme.textMuted },
+  backStatValue: { fontSize: 16, fontWeight: '700' },
+  backStatLabel: { fontSize: 9, fontWeight: '600', color: theme.textMuted },
 
-  // ===== BOTTOM =====
-  bottomSection: { marginTop: 20, alignItems: 'center', width: '100%' },
-  supportText: {
-    fontSize: 13, fontWeight: '600', color: theme.textMuted,
-    writingDirection: 'rtl' as const, textAlign: 'center', marginBottom: 14,
+  // === Car Photos ===
+  carPhotosSection: {
+    width: CARD_WIDTH, marginTop: 16, padding: 16,
+    backgroundColor: theme.surface, borderRadius: theme.radiusLarge,
+    borderWidth: 1, borderColor: theme.border,
   },
-  bottomActions: { flexDirection: 'row', gap: 10, width: '100%' },
+  carPhotosHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  carPhotosTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl' as const, textAlign: 'right' },
+  carPhotoWrap: { width: 120, height: 90, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: theme.border },
+  carPhoto: { width: 120, height: 90 },
+
+  // === Bottom ===
+  bottomSection: { width: CARD_WIDTH, marginTop: 20, gap: 10 },
+  shareRow: { flexDirection: 'row', gap: 10 },
   whatsappBtn: {
-    flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#25D366', paddingVertical: 14, borderRadius: theme.radiusMedium,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#25D366', paddingVertical: 15, borderRadius: theme.radiusMedium,
   },
   whatsappBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700', writingDirection: 'rtl' as const },
-  shareCardBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: theme.primary + '20', paddingVertical: 14, borderRadius: theme.radiusMedium,
-    borderWidth: 1, borderColor: theme.primary + '40',
+  shareAllBtn: {
+    width: 52, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: theme.primary + '15', borderRadius: theme.radiusMedium, borderWidth: 1, borderColor: theme.primary + '30',
   },
-  shareCardBtnText: { color: theme.primary, fontSize: 14, fontWeight: '700' },
+  contactBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 14, backgroundColor: theme.accent + '08', borderRadius: theme.radiusMedium,
+    borderWidth: 1, borderColor: theme.accent + '20',
+  },
+  contactBtnText: { fontSize: 14, fontWeight: '600', color: theme.accent, writingDirection: 'rtl' as const },
 
-  // Loading
   loadingWrap: { alignItems: 'center', gap: 12 },
   loadingText: { fontSize: 15, fontWeight: '600', color: theme.textMuted, writingDirection: 'rtl' as const },
 });

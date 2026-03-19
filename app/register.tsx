@@ -7,6 +7,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAlert } from '@/template';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
+import { getSupabaseClient } from '@/template';
 import { theme, typography } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 
@@ -18,17 +23,29 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { showAlert } = useAlert();
   const { sendOTP, verifyOTPAndRegister, operationLoading } = useAuth();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // Step 1: Personal info
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [nationality, setNationality] = useState('');
+  const [residenceNumber, setResidenceNumber] = useState('');
+
+  // Step 2: Vehicle info
   const [vehicleType, setVehicleType] = useState('');
   const [carModel, setCarModel] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
+
+  // Step 3: Photos
+  const [avatarUri, setAvatarUri] = useState('');
+  const [carPhotoUris, setCarPhotoUris] = useState<string[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+
+  // Step 4: OTP
   const [otp, setOtp] = useState('');
 
   const validateStep1 = () => {
@@ -60,11 +77,58 @@ export default function RegisterScreen() {
     return true;
   };
 
+  const pickAvatar = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setAvatarUri(result.assets[0].uri);
+    }
+  };
+
+  const pickCarPhoto = async () => {
+    if (carPhotoUris.length >= 4) {
+      showAlert('تنبيه', 'يمكنك إرفاق 4 صور كحد أقصى');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setCarPhotoUris(prev => [...prev, result.assets[0].uri]);
+    }
+  };
+
+  const removeCarPhoto = (index: number) => {
+    setCarPhotoUris(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadImage = async (uri: string, path: string): Promise<string | null> => {
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const ext = uri.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.storage
+        .from('driver-photos')
+        .upload(path, decode(base64), { contentType: mimeType, upsert: true });
+      if (error) { console.error('Upload error:', error); return null; }
+      const { data: urlData } = supabase.storage.from('driver-photos').getPublicUrl(data.path);
+      return urlData.publicUrl;
+    } catch (e) { console.error('Upload exception:', e); return null; }
+  };
+
   const handleSendOTP = async () => {
-    if (!validateStep2()) return;
+    // Photos are optional, just proceed to OTP
     const result = await sendOTP(email.trim());
     if (result.success) {
-      setStep(3);
+      setStep(4);
       showAlert('تم الإرسال', 'تم إرسال رمز التحقق إلى بريدك الإلكتروني');
     } else {
       showAlert('خطأ', result.error || 'فشل إرسال رمز التحقق');
@@ -77,7 +141,25 @@ export default function RegisterScreen() {
       return;
     }
 
-    const result = await verifyOTPAndRegister(email.trim(), otp.trim(), password, {
+    setUploadingPhotos(true);
+    const timestamp = Date.now();
+
+    // Upload avatar
+    let avatarUrl = '';
+    if (avatarUri) {
+      const url = await uploadImage(avatarUri, `avatars/${timestamp}_avatar.jpg`);
+      if (url) avatarUrl = url;
+    }
+
+    // Upload car photos
+    const carPhotoUrls: string[] = [];
+    for (let i = 0; i < carPhotoUris.length; i++) {
+      const url = await uploadImage(carPhotoUris[i], `cars/${timestamp}_car_${i}.jpg`);
+      if (url) carPhotoUrls.push(url);
+    }
+    setUploadingPhotos(false);
+
+    const metadata: Record<string, any> = {
       full_name: name.trim(),
       phone: phone.trim(),
       username: name.trim().split(' ')[0],
@@ -86,9 +168,29 @@ export default function RegisterScreen() {
       car_model: carModel.trim(),
       vehicle_plate: vehiclePlate.trim(),
       license_number: licenseNumber.trim(),
-    }, 'driver');
+      residence_number: residenceNumber.trim(),
+    };
+    if (avatarUrl) metadata.avatar_url = avatarUrl;
+    if (carPhotoUrls.length > 0) metadata.car_photos = carPhotoUrls;
+
+    const result = await verifyOTPAndRegister(email.trim(), otp.trim(), password, metadata, 'driver');
 
     if (result.success) {
+      // Update car_photos as JSON if needed
+      if (carPhotoUrls.length > 0 || avatarUrl || residenceNumber.trim()) {
+        try {
+          const supabase = getSupabaseClient();
+          const userId = result.userId || result.user?.id;
+          if (userId) {
+            const updates: Record<string, any> = {};
+            if (carPhotoUrls.length > 0) updates.car_photos = carPhotoUrls;
+            if (avatarUrl) updates.avatar_url = avatarUrl;
+            if (residenceNumber.trim()) updates.residence_number = residenceNumber.trim();
+            await supabase.from('user_profiles').update(updates).eq('id', userId);
+          }
+        } catch (e) { console.error('Post-register update:', e); }
+      }
+
       showAlert('تم التسجيل بنجاح', 'تم إرسال طلبك للمراجعة. ستتلقى إشعاراً عند قبول حسابك من الإدارة.', [
         { text: 'حسناً', onPress: () => { setTimeout(() => router.replace('/login'), 100); } },
       ]);
@@ -97,18 +199,21 @@ export default function RegisterScreen() {
     }
   };
 
+  const totalSteps = 4;
+  const currentStep = step;
+
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => step > 1 ? setStep((step - 1) as 1 | 2) : router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => step > 1 ? setStep((step - 1) as any) : router.back()} style={styles.backBtn}>
           <MaterialIcons name="arrow-forward" size={24} color={theme.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>تسجيل سائق جديد</Text>
-        <Text style={styles.stepText}>{step}/3</Text>
+        <Text style={styles.stepText}>{currentStep}/{totalSteps}</Text>
       </View>
 
       <View style={styles.progressBar}>
-        <View style={[styles.progressFill, { width: `${(step / 3) * 100}%` }]} />
+        <View style={[styles.progressFill, { width: `${(currentStep / totalSteps) * 100}%` }]} />
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -135,6 +240,9 @@ export default function RegisterScreen() {
                   </Pressable>
                 ))}
               </View>
+
+              <Text style={styles.label}>رقم الإقامة</Text>
+              <TextInput value={residenceNumber} onChangeText={setResidenceNumber} placeholder="رقم الإقامة (اختياري)" placeholderTextColor={theme.textMuted} style={styles.input} textAlign="right" keyboardType="number-pad" />
 
               <Text style={styles.label}>البريد الإلكتروني *</Text>
               <TextInput value={email} onChangeText={setEmail} placeholder="email@example.com" placeholderTextColor={theme.textMuted} style={styles.input} textAlign="right" keyboardType="email-address" autoCapitalize="none" />
@@ -171,6 +279,56 @@ export default function RegisterScreen() {
               <Text style={styles.label}>رقم رخصة القيادة *</Text>
               <TextInput value={licenseNumber} onChangeText={setLicenseNumber} placeholder="رقم الرخصة" placeholderTextColor={theme.textMuted} style={styles.input} textAlign="right" />
             </Animated.View>
+          ) : step === 3 ? (
+            <Animated.View entering={FadeInDown.duration(300)}>
+              <View style={styles.stepHeader}>
+                <MaterialIcons name="photo-camera" size={32} color={theme.primary} />
+                <Text style={styles.stepTitle}>الصور والمرفقات</Text>
+                <Text style={styles.stepDesc}>أضف صورتك الشخصية وصور السيارة</Text>
+              </View>
+
+              {/* Personal Photo */}
+              <Text style={styles.label}>الصورة الشخصية</Text>
+              <Pressable onPress={pickAvatar} style={styles.avatarPickerCard}>
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={styles.avatarPreview} contentFit="cover" transition={200} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <MaterialIcons name="add-a-photo" size={32} color={theme.primary} />
+                    <Text style={styles.avatarPlaceholderText}>اضغط لإضافة صورة شخصية</Text>
+                  </View>
+                )}
+                {avatarUri ? (
+                  <Pressable onPress={() => setAvatarUri('')} style={styles.removePhotoBtn}>
+                    <MaterialIcons name="close" size={16} color="#FFF" />
+                  </Pressable>
+                ) : null}
+              </Pressable>
+
+              {/* Car Photos */}
+              <Text style={[styles.label, { marginTop: 24 }]}>صور السيارة (حتى 4 صور)</Text>
+              <View style={styles.carPhotosGrid}>
+                {carPhotoUris.map((uri, index) => (
+                  <View key={index} style={styles.carPhotoItem}>
+                    <Image source={{ uri }} style={styles.carPhotoPreview} contentFit="cover" transition={200} />
+                    <Pressable onPress={() => removeCarPhoto(index)} style={styles.removeCarPhotoBtn}>
+                      <MaterialIcons name="close" size={14} color="#FFF" />
+                    </Pressable>
+                  </View>
+                ))}
+                {carPhotoUris.length < 4 ? (
+                  <Pressable onPress={pickCarPhoto} style={styles.addCarPhotoBtn}>
+                    <MaterialIcons name="add-photo-alternate" size={28} color={theme.primary} />
+                    <Text style={styles.addCarPhotoText}>إضافة</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <View style={styles.noteBox}>
+                <MaterialIcons name="info-outline" size={18} color={theme.primary} />
+                <Text style={styles.noteText}>الصور اختيارية ولكنها تزيد من مصداقية حسابك وتسرّع عملية الموافقة.</Text>
+              </View>
+            </Animated.View>
           ) : (
             <Animated.View entering={FadeInDown.duration(300)}>
               <View style={styles.stepHeader}>
@@ -193,7 +351,7 @@ export default function RegisterScreen() {
                 <Text style={styles.noteText}>تحقق من صندوق الوارد أو مجلد البريد العشوائي. سيتم مراجعة طلبك من قبل الإدارة.</Text>
               </View>
 
-              <Pressable onPress={handleSendOTP} disabled={operationLoading} style={styles.resendBtn}>
+              <Pressable onPress={() => { setStep(3); handleSendOTP(); }} disabled={operationLoading} style={styles.resendBtn}>
                 <Text style={styles.resendText}>إعادة إرسال الرمز</Text>
               </Pressable>
             </Animated.View>
@@ -208,14 +366,21 @@ export default function RegisterScreen() {
             <MaterialIcons name="arrow-back" size={20} color="#FFF" />
           </Pressable>
         ) : step === 2 ? (
-          <Pressable onPress={handleSendOTP} disabled={operationLoading} style={[styles.nextBtn, operationLoading && { opacity: 0.6 }]}>
+          <Pressable onPress={() => { if (validateStep2()) setStep(3); }} style={styles.nextBtn}>
+            <Text style={styles.nextBtnText}>التالي — الصور</Text>
+            <MaterialIcons name="arrow-back" size={20} color="#FFF" />
+          </Pressable>
+        ) : step === 3 ? (
+          <Pressable onPress={handleSendOTP} disabled={operationLoading} style={[styles.nextBtn, { backgroundColor: theme.accent }, operationLoading && { opacity: 0.6 }]}>
             {operationLoading ? <ActivityIndicator color="#FFF" /> : (
               <><Text style={styles.nextBtnText}>إرسال رمز التحقق</Text><MaterialIcons name="email" size={20} color="#FFF" /></>
             )}
           </Pressable>
         ) : (
-          <Pressable onPress={handleVerifyAndSubmit} disabled={operationLoading} style={[styles.submitBtn, operationLoading && { opacity: 0.6 }]}>
-            {operationLoading ? <ActivityIndicator color="#FFF" /> : (
+          <Pressable onPress={handleVerifyAndSubmit} disabled={operationLoading || uploadingPhotos} style={[styles.submitBtn, (operationLoading || uploadingPhotos) && { opacity: 0.6 }]}>
+            {operationLoading || uploadingPhotos ? (
+              <><ActivityIndicator color="#FFF" /><Text style={styles.submitBtnText}>{uploadingPhotos ? 'جاري رفع الصور...' : 'جاري التحقق...'}</Text></>
+            ) : (
               <><MaterialIcons name="verified" size={20} color="#FFF" /><Text style={styles.submitBtnText}>تأكيد وإرسال الطلب</Text></>
             )}
           </Pressable>
@@ -253,4 +418,35 @@ const styles = StyleSheet.create({
   nextBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.success, paddingVertical: 16, borderRadius: theme.radiusMedium },
   submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+
+  // Photo picker styles
+  avatarPickerCard: {
+    width: 140, height: 140, borderRadius: 70, alignSelf: 'center',
+    backgroundColor: theme.surfaceElevated, borderWidth: 2, borderColor: theme.primary + '30',
+    borderStyle: 'dashed', overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
+  },
+  avatarPreview: { width: 140, height: 140, borderRadius: 70 },
+  avatarPlaceholder: { alignItems: 'center', gap: 8 },
+  avatarPlaceholderText: { fontSize: 11, fontWeight: '600', color: theme.textMuted, writingDirection: 'rtl', textAlign: 'center' },
+  removePhotoBtn: {
+    position: 'absolute', top: 4, right: 4, width: 28, height: 28, borderRadius: 14,
+    backgroundColor: theme.error, alignItems: 'center', justifyContent: 'center',
+  },
+
+  carPhotosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  carPhotoItem: {
+    width: '47%' as any, aspectRatio: 4 / 3, borderRadius: theme.radiusMedium, overflow: 'hidden',
+    borderWidth: 1, borderColor: theme.border,
+  },
+  carPhotoPreview: { width: '100%', height: '100%' },
+  removeCarPhotoBtn: {
+    position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: 12,
+    backgroundColor: theme.error, alignItems: 'center', justifyContent: 'center',
+  },
+  addCarPhotoBtn: {
+    width: '47%' as any, aspectRatio: 4 / 3, borderRadius: theme.radiusMedium,
+    backgroundColor: theme.surfaceElevated, borderWidth: 2, borderColor: theme.primary + '25',
+    borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4,
+  },
+  addCarPhotoText: { fontSize: 12, fontWeight: '600', color: theme.primary },
 });

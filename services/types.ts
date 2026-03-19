@@ -24,6 +24,8 @@ export interface UserProfile {
   penalties: number;
   avatar_url?: string;
   push_token?: string;
+  residence_number?: string;
+  car_photos?: string[];
   created_at: string;
   updated_at: string;
 }
