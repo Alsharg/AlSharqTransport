@@ -12,8 +12,8 @@ import { theme, typography } from '../constants/theme';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../hooks/useAuth';
 import { getTripTypeIcon, getStatusColor, formatTripNumber } from '../services/types';
+import { useLanguage } from '../contexts/LanguageContext';
 import { config } from '../constants/config';
-import TripTimeline from '../components/feature/TripTimeline';
 import TripTimeline from '../components/feature/TripTimeline';
 
 export default function TripDetailScreen() {
