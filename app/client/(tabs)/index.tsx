@@ -4,10 +4,12 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Linking } from 'react-native';
 import { theme, typography } from '../../../constants/theme';
 import { useApp } from '../../../contexts/AppContext';
 import { useAuth } from '../../../hooks/useAuth';
 import { getTripStatusLabel, getStatusColor, formatTripNumber, getTripTypeLabel } from '../../../services/types';
+import { ADMIN_WHATSAPP } from '../../../constants/i18n';
 
 export default function ClientHomeScreen() {
   const insets = useSafeAreaInsets();
@@ -18,11 +20,19 @@ export default function ClientHomeScreen() {
   const displayName = user?.full_name || user?.username || 'عميل';
 
   const quickActions = [
-    { icon: 'add-circle', label: 'مشوار جديد', color: '#8B5CF6', route: '/client/(tabs)/request-trip' },
-    { icon: 'route', label: 'مشاويري', color: '#3B82F6', route: '/client/(tabs)/my-trips' },
-    { icon: 'chat-bubble-outline', label: 'الدعم', color: '#22C55E', route: '/chat' },
+    { icon: 'add-circle', label: 'مشوار جديد', color: theme.accent, route: '/client/(tabs)/request-trip' },
+    { icon: 'route', label: 'مشاويري', color: theme.primary, route: '/client/(tabs)/my-trips' },
+    { icon: 'chat', label: 'واتساب', color: '#25D366', route: 'whatsapp' },
     { icon: 'notifications-none', label: 'الإشعارات', color: '#F59E0B', route: '/notifications' },
   ];
+
+  const handleQuickAction = (route: string) => {
+    if (route === 'whatsapp') {
+      Linking.openURL(`https://wa.me/${ADMIN_WHATSAPP}`).catch(() => {});
+    } else {
+      router.push(route as any);
+    }
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
@@ -41,9 +51,11 @@ export default function ClientHomeScreen() {
         {/* Hero Card */}
         <Animated.View entering={FadeInDown.duration(400).delay(100)} style={styles.heroCard}>
           <View style={styles.heroContent}>
-            <MaterialIcons name="local-shipping" size={40} color="#8B5CF6" />
-            <View style={{ flex: 1, marginRight: 16 }}>
-              <Text style={styles.heroTitle}>الشرق للنقل والتوصيل</Text>
+            <View style={styles.heroIconWrap}>
+              <MaterialIcons name="local-shipping" size={32} color="#FFF" />
+            </View>
+            <View style={{ flex: 1, marginRight: 14 }}>
+              <Text style={styles.heroTitle}>الشرق درايفر</Text>
               <Text style={styles.heroSubtitle}>اطلب مشوارك الآن بأفضل الأسعار</Text>
             </View>
           </View>
@@ -56,8 +68,8 @@ export default function ClientHomeScreen() {
         {/* Quick Actions */}
         <Animated.View entering={FadeInDown.duration(400).delay(200)} style={styles.actionsRow}>
           {quickActions.map(action => (
-            <Pressable key={action.label} onPress={() => router.push(action.route as any)} style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] }]}>
-              <View style={[styles.actionIcon, { backgroundColor: action.color + '15' }]}>
+            <Pressable key={action.label} onPress={() => handleQuickAction(action.route)} style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] }]}>
+              <View style={[styles.actionIcon, { backgroundColor: action.color + '12' }]}>
                 <MaterialIcons name={action.icon as any} size={24} color={action.color} />
               </View>
               <Text style={styles.actionLabel}>{action.label}</Text>
@@ -67,21 +79,33 @@ export default function ClientHomeScreen() {
 
         {/* Stats */}
         <Animated.View entering={FadeInDown.duration(400).delay(300)} style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: '#8B5CF6' }]}>{clientActiveTrips.length}</Text>
+          <View style={[styles.statCard, { borderBottomColor: theme.primary, borderBottomWidth: 3 }]}>
+            <Text style={[styles.statValue, { color: theme.primary }]}>{clientActiveTrips.length}</Text>
             <Text style={styles.statLabel}>نشط</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { borderBottomColor: theme.success, borderBottomWidth: 3 }]}>
             <Text style={[styles.statValue, { color: theme.success }]}>{clientCompletedTrips.length}</Text>
             <Text style={styles.statLabel}>مكتمل</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { borderBottomColor: theme.accent, borderBottomWidth: 3 }]}>
             <Text style={[styles.statValue, { color: theme.accent }]}>{clientTrips.length}</Text>
             <Text style={styles.statLabel}>إجمالي</Text>
           </View>
         </Animated.View>
 
-        {/* Pending Driver Approvals — Client can approve/reject drivers */}
+        {/* WhatsApp Support Banner */}
+        <Animated.View entering={FadeInDown.duration(400).delay(320)}>
+          <Pressable onPress={() => Linking.openURL(`https://wa.me/${ADMIN_WHATSAPP}`).catch(() => {})} style={styles.supportBanner}>
+            <MaterialIcons name="chat" size={24} color="#25D366" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.supportTitle}>للمساعدة والدعم</Text>
+              <Text style={styles.supportNum}>0569559088</Text>
+            </View>
+            <MaterialIcons name="chevron-left" size={22} color="#25D366" />
+          </Pressable>
+        </Animated.View>
+
+        {/* Pending Driver Approvals */}
         {(() => {
           const pendingApprovals = clientTrips.filter(t => t.status === 'available').map(t => {
             const apps = tripApplications.filter(a => a.trip_id === t.id && a.status === 'pending');
@@ -97,12 +121,12 @@ export default function ClientHomeScreen() {
                 applications.map(app => (
                   <View key={app.id} style={styles.approvalCard}>
                     <View style={styles.approvalTop}>
-                      <View style={[styles.approvalIcon, { backgroundColor: '#F59E0B15' }]}>
+                      <View style={[styles.approvalIcon, { backgroundColor: '#F59E0B12' }]}>
                         <MaterialIcons name="person-pin" size={22} color="#F59E0B" />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.approvalName}>{app.driver_name}</Text>
-                        <Text style={styles.approvalTrip}>{trip.pickup_location} \u2192 {trip.dropoff_location}</Text>
+                        <Text style={styles.approvalTrip}>{trip.pickup_location} → {trip.dropoff_location}</Text>
                       </View>
                     </View>
                     <View style={styles.approvalActions}>
@@ -134,7 +158,7 @@ export default function ClientHomeScreen() {
               return (
                 <Pressable key={trip.id} onPress={() => router.push({ pathname: '/trip-detail', params: { id: trip.id } })} style={styles.tripCard}>
                   <View style={styles.tripTop}>
-                    <View style={[styles.tripIcon, { backgroundColor: color + '15' }]}>
+                    <View style={[styles.tripIcon, { backgroundColor: color + '12' }]}>
                       <MaterialIcons name="route" size={20} color={color} />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -148,7 +172,7 @@ export default function ClientHomeScreen() {
                   </View>
                   <View style={styles.tripBottom}>
                     {formatTripNumber(trip.trip_number) ? <View style={styles.tripNum}><Text style={styles.tripNumText}>{formatTripNumber(trip.trip_number)}</Text></View> : null}
-                    <View style={[styles.statusBadge, { backgroundColor: color + '15' }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: color + '12' }]}>
                       <View style={[styles.statusDot, { backgroundColor: color }]} />
                       <Text style={[styles.statusText, { color }]}>{getTripStatusLabel(trip.status)}</Text>
                     </View>
@@ -174,28 +198,32 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
   greeting: { fontSize: 14, fontWeight: '500', color: theme.textMuted, writingDirection: 'rtl' },
   name: { fontSize: 22, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl' },
-  iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.surfaceElevated, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border },
+  iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border, ...theme.shadowLight, elevation: 2 },
   badge: { position: 'absolute', top: 4, right: 4, backgroundColor: theme.error, borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
-  heroCard: { marginHorizontal: 20, padding: 24, backgroundColor: '#0D001A', borderRadius: theme.radiusXL, borderWidth: 1.5, borderColor: '#8B5CF6' + '30', marginBottom: 24 },
-  heroContent: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 18 },
-  heroTitle: { fontSize: 18, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl', textAlign: 'right' },
-  heroSubtitle: { fontSize: 13, color: theme.textMuted, writingDirection: 'rtl', textAlign: 'right', marginTop: 4 },
-  heroCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#8B5CF6', paddingVertical: 14, borderRadius: theme.radiusMedium },
+  heroCard: { marginHorizontal: 20, padding: 24, backgroundColor: theme.primary, borderRadius: theme.radiusXL, marginBottom: 24, ...theme.shadow, elevation: 4 },
+  heroContent: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
+  heroIconWrap: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  heroTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF', writingDirection: 'rtl', textAlign: 'right' },
+  heroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.75)', writingDirection: 'rtl', textAlign: 'right', marginTop: 4 },
+  heroCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.accent, paddingVertical: 14, borderRadius: theme.radiusMedium },
   heroCtaText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  actionsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 24 },
-  actionCard: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: 18, backgroundColor: theme.surface, borderRadius: theme.radiusMedium, borderWidth: 1, borderColor: theme.border },
+  actionsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 20 },
+  actionCard: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: 18, backgroundColor: theme.surface, borderRadius: theme.radiusMedium, borderWidth: 1, borderColor: theme.border, ...theme.shadowLight, elevation: 1 },
   actionIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { fontSize: 11, fontWeight: '600', color: theme.textMuted, writingDirection: 'rtl' },
-  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 24 },
-  statCard: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 16, backgroundColor: theme.surface, borderRadius: theme.radiusMedium, borderWidth: 1, borderColor: theme.border },
+  actionLabel: { fontSize: 11, fontWeight: '600', color: theme.textSecondary, writingDirection: 'rtl' },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 20 },
+  statCard: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 16, backgroundColor: theme.surface, borderRadius: theme.radiusMedium, borderWidth: 1, borderColor: theme.border, ...theme.shadowLight, elevation: 1 },
   statValue: { fontSize: 24, fontWeight: '700' },
   statLabel: { fontSize: 11, fontWeight: '600', color: theme.textMuted },
+  supportBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 20, marginBottom: 20, padding: 16, backgroundColor: '#25D36608', borderRadius: theme.radiusMedium, borderWidth: 1.5, borderColor: '#25D36625' },
+  supportTitle: { fontSize: 14, fontWeight: '700', color: '#1A1D26', writingDirection: 'rtl', textAlign: 'right' },
+  supportNum: { fontSize: 13, fontWeight: '500', color: '#25D366', writingDirection: 'rtl', textAlign: 'right', marginTop: 2 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 14 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl' },
-  countBadge: { backgroundColor: '#8B5CF6', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
+  countBadge: { backgroundColor: theme.primary, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
   countBadgeText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
-  tripCard: { marginHorizontal: 20, marginBottom: 12, padding: 18, backgroundColor: theme.surface, borderRadius: theme.radiusLarge, borderWidth: 1, borderColor: theme.border },
+  tripCard: { marginHorizontal: 20, marginBottom: 12, padding: 18, backgroundColor: theme.surface, borderRadius: theme.radiusLarge, borderWidth: 1, borderColor: theme.border, ...theme.shadowLight, elevation: 2 },
   tripTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   tripIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   tripRoute: { fontSize: 14, fontWeight: '600', color: theme.textPrimary, writingDirection: 'rtl', textAlign: 'right' },
@@ -204,15 +232,15 @@ const styles = StyleSheet.create({
   tripPrice: { fontSize: 20, fontWeight: '700', color: theme.accent },
   tripCurrency: { fontSize: 10, color: theme.textMuted },
   tripBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: theme.borderLight },
-  tripNum: { backgroundColor: '#8B5CF6' + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  tripNumText: { fontSize: 10, fontWeight: '700', color: '#8B5CF6' },
+  tripNum: { backgroundColor: theme.primary + '15', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  tripNumText: { fontSize: 10, fontWeight: '700', color: theme.primary },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: theme.radiusFull },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 12, fontWeight: '600' },
   emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: theme.textMuted, marginTop: 16, writingDirection: 'rtl' },
   emptySubtitle: { fontSize: 13, color: theme.textMuted, marginTop: 4, writingDirection: 'rtl' },
-  approvalCard: { marginHorizontal: 20, marginBottom: 10, padding: 16, backgroundColor: '#F59E0B08', borderRadius: theme.radiusLarge, borderWidth: 1.5, borderColor: '#F59E0B30' },
+  approvalCard: { marginHorizontal: 20, marginBottom: 10, padding: 16, backgroundColor: '#F59E0B06', borderRadius: theme.radiusLarge, borderWidth: 1.5, borderColor: '#F59E0B25' },
   approvalTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   approvalIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   approvalName: { fontSize: 15, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl', textAlign: 'right' },

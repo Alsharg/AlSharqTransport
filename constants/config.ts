@@ -1,6 +1,6 @@
 export const config = {
-  appName: 'الشرق للنقل والتوصيل',
-  appNameEn: 'Al-Sharq Transport',
+  appName: 'الشرق درايفر',
+  appNameEn: 'Al-Sharq Driver',
   version: '2.0.0',
   
   // Commission System

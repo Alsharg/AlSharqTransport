@@ -69,8 +69,7 @@ export default function MoreScreen() {
   ];
 
   const supportSettings = [
-    { id: 'wa', icon: 'chat', label: t.contactViaWhatsApp, value: '0569559088', onPress: openAdminWhatsApp, showChevron: true, color: '#25D366' },
-    { id: '7', icon: 'email', label: t.contactUs, value: config.email, onPress: () => {}, showChevron: true },
+    { id: 'wa', icon: 'chat', label: 'للمساعدة والدعم', value: '0569559088', onPress: openAdminWhatsApp, showChevron: true, color: '#25D366' },
     { id: '8', icon: 'info-outline', label: t.aboutApp, value: `${t.version} ${config.version}`, onPress: () => {}, showChevron: true },
   ];
 
@@ -212,7 +211,7 @@ export default function MoreScreen() {
         </Animated.View>
 
         <Pressable onPress={handleLogoTap} style={styles.footer}>
-          <Text style={styles.footerText}>{t.appName}</Text>
+          <Text style={styles.footerText}>الشرق درايفر</Text>
           <Text style={styles.footerVersion}>{t.version} {config.version}</Text>
           {tapCount >= 3 ? <Text style={styles.tapHint}>{5 - tapCount} نقرات متبقية...</Text> : null}
         </Pressable>

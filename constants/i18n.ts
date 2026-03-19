@@ -130,7 +130,7 @@ type TranslationKeys = {
 };
 
 const ar: TranslationKeys = {
-  appName: 'الشرق للنقل والتوصيل',
+  appName: 'الشرق درايفر',
   home: 'الرئيسية',
   myTrips: 'مشاويري',
   earnings: 'الأرباح',
@@ -239,7 +239,7 @@ const ar: TranslationKeys = {
 };
 
 const en: TranslationKeys = {
-  appName: 'Al-Sharq Transport',
+  appName: 'Al-Sharq Driver',
   home: 'Home',
   myTrips: 'My Trips',
   earnings: 'Earnings',
@@ -348,7 +348,7 @@ const en: TranslationKeys = {
 };
 
 const ur: TranslationKeys = {
-  appName: 'الشرق ٹرانسپورٹ',
+  appName: 'الشرق ڈرائیور',
   home: 'ہوم',
   myTrips: 'میری سواریاں',
   earnings: 'کمائی',

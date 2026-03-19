@@ -9,7 +9,7 @@ export default function ClientTabLayout() {
   return (
     <Tabs screenOptions={{
       headerShown: false,
-      tabBarActiveTintColor: '#8B5CF6',
+      tabBarActiveTintColor: theme.accent,
       tabBarInactiveTintColor: theme.textMuted,
       tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       tabBarStyle: {

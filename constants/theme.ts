@@ -1,53 +1,53 @@
-// Al-Sharq Transport — Royal Blue Professional Theme
-// Metaphor: Glass — smooth surfaces with layered depth
+// Al-Sharq Driver — Clean White Professional Theme
+// Metaphor: Paper — matte surfaces with clean depth
 
 export const theme = {
-  // Primary Palette — Royal Blue
-  primary: '#1E3A8A',
-  primaryLight: '#3B5FCC',
-  primaryDark: '#0F1D45',
+  // Primary Palette — Dark Blue
+  primary: '#1A3B6D',
+  primaryLight: '#2E5EA8',
+  primaryDark: '#0F2443',
   primaryGlow: '#2563EB',
 
-  // Accent — Gold
-  accent: '#D4A017',
-  accentLight: '#F5D060',
-  accentDark: '#8B6914',
+  // Accent — Orange
+  accent: '#F57C20',
+  accentLight: '#FDBA74',
+  accentDark: '#C05E10',
 
   // Surfaces
-  background: '#040B1A',
-  backgroundSecondary: '#0A1628',
-  surface: '#0D1B33',
-  surfaceElevated: '#132444',
-  surfaceGlass: 'rgba(30, 58, 138, 0.12)',
+  background: '#F5F6FA',
+  backgroundSecondary: '#EBEEF5',
+  surface: '#FFFFFF',
+  surfaceElevated: '#F0F2F8',
+  surfaceGlass: 'rgba(26, 59, 109, 0.06)',
 
   // Text
-  textPrimary: '#F1F5F9',
-  textSecondary: '#94A3B8',
-  textMuted: '#64748B',
-  textInverse: '#040B1A',
+  textPrimary: '#1A1D26',
+  textSecondary: '#4B5563',
+  textMuted: '#9CA3AF',
+  textInverse: '#FFFFFF',
 
   // Borders
-  border: '#1E3152',
-  borderLight: '#162845',
-  borderAccent: 'rgba(212, 160, 23, 0.3)',
+  border: '#E2E5EE',
+  borderLight: '#EEF0F6',
+  borderAccent: 'rgba(245, 124, 32, 0.25)',
 
   // Status
-  success: '#22C55E',
-  successLight: 'rgba(34, 197, 94, 0.15)',
-  error: '#EF4444',
-  errorLight: 'rgba(239, 68, 68, 0.15)',
+  success: '#16A34A',
+  successLight: 'rgba(22, 163, 74, 0.10)',
+  error: '#DC2626',
+  errorLight: 'rgba(220, 38, 38, 0.10)',
   warning: '#F59E0B',
-  warningLight: 'rgba(245, 158, 11, 0.15)',
-  info: '#3B82F6',
-  infoLight: 'rgba(59, 130, 246, 0.15)',
+  warningLight: 'rgba(245, 158, 11, 0.10)',
+  info: '#2563EB',
+  infoLight: 'rgba(37, 99, 235, 0.10)',
 
   // Trip Status Colors
-  statusAvailable: '#3B82F6',
+  statusAvailable: '#2563EB',
   statusAccepted: '#F59E0B',
-  statusInProgress: '#8B5CF6',
-  statusCompleted: '#22C55E',
-  statusCancelled: '#EF4444',
-  statusConfirmed: '#14B8A6',
+  statusInProgress: '#7C3AED',
+  statusCompleted: '#16A34A',
+  statusCancelled: '#DC2626',
+  statusConfirmed: '#0D9488',
 
   // Radius
   radiusSmall: 8,
@@ -58,16 +58,16 @@ export const theme = {
 
   // Shadows (iOS)
   shadow: {
-    shadowColor: '#000',
+    shadowColor: '#1A3B6D',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   shadowLight: {
-    shadowColor: '#1E3A8A',
+    shadowColor: '#1A3B6D',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
   },
 };
 

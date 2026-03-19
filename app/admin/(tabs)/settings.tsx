@@ -37,7 +37,7 @@ export default function AdminSettingsScreen() {
 
   const accountItems = [
     { id: 'profile', icon: 'person', label: 'الملف الشخصي', desc: user?.email || '', color: theme.primary, route: '/edit-profile' },
-    { id: 'whatsapp', icon: 'chat', label: 'واتساب الإدارة', desc: '0569559088', color: '#25D366', route: '' },
+    { id: 'whatsapp', icon: 'chat', label: 'للمساعدة والدعم', desc: '0569559088', color: '#25D366', route: '' },
   ];
 
   const handleLogout = () => {
@@ -187,7 +187,7 @@ export default function AdminSettingsScreen() {
         </Animated.View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>الشرق للنقل والتوصيل</Text>
+          <Text style={styles.footerText}>الشرق درايفر</Text>
           <Text style={styles.footerVersion}>الإصدار {config.version}</Text>
         </View>
       </ScrollView>

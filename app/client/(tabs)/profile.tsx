@@ -153,14 +153,14 @@ export default function ClientProfileScreen() {
 
           {/* Profile Card */}
           <Animated.View entering={FadeInDown.duration(400).delay(50)} style={styles.profileCard}>
-            <View style={[styles.avatar, { backgroundColor: '#8B5CF6' + '20' }]}>
-              <MaterialIcons name="person" size={40} color="#8B5CF6" />
+            <View style={[styles.avatar, { backgroundColor: theme.accent + '15' }]}>
+              <MaterialIcons name="person" size={40} color={theme.accent} />
             </View>
             <Text style={styles.name}>{user?.full_name || user?.username || 'عميل'}</Text>
             <Text style={styles.emailDisplay}>{user?.email}</Text>
-            <View style={[styles.roleBadge, { backgroundColor: '#8B5CF6' + '20' }]}>
-              <MaterialIcons name="verified" size={14} color="#8B5CF6" />
-              <Text style={[styles.roleText, { color: '#8B5CF6' }]}>عميل</Text>
+            <View style={[styles.roleBadge, { backgroundColor: theme.accent + '15' }]}>
+              <MaterialIcons name="verified" size={14} color={theme.accent} />
+              <Text style={[styles.roleText, { color: theme.accent }]}>عميل</Text>
             </View>
             <View style={styles.statsRow}>
               <View style={styles.stat}><Text style={styles.statValue}>{myTripsCount}</Text><Text style={styles.statLabel}>مشوار</Text></View>
@@ -323,7 +323,7 @@ export default function ClientProfileScreen() {
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>الشرق للنقل والتوصيل</Text>
+            <Text style={styles.footerText}>الشرق درايفر</Text>
             <Text style={styles.footerVersion}>الإصدار {config.version}</Text>
           </View>
         </ScrollView>
@@ -336,8 +336,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
   headerTitle: { fontSize: 22, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl' },
-  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radiusFull, backgroundColor: '#8B5CF610', borderWidth: 1, borderColor: '#8B5CF625' },
-  editBtnText: { fontSize: 13, fontWeight: '600', color: '#8B5CF6' },
+  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radiusFull, backgroundColor: theme.accent + '10', borderWidth: 1, borderColor: theme.accent + '25' },
+  editBtnText: { fontSize: 13, fontWeight: '600', color: theme.accent },
   profileCard: { marginHorizontal: 20, padding: 28, backgroundColor: theme.surface, borderRadius: theme.radiusXL, alignItems: 'center', borderWidth: 1, borderColor: theme.border, marginBottom: 20 },
   avatar: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   name: { fontSize: 20, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl' },
@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
   fieldInput: { fontSize: 15, fontWeight: '500', color: theme.textPrimary, writingDirection: 'rtl', backgroundColor: theme.backgroundSecondary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: theme.border },
   fieldDivider: { height: 1, backgroundColor: theme.borderLight, marginHorizontal: 16 },
   saveBtnWrap: { paddingHorizontal: 20, marginBottom: 20 },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#8B5CF6', paddingVertical: 16, borderRadius: theme.radiusMedium },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.accent, paddingVertical: 16, borderRadius: theme.radiusMedium },
   saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
   menuLabel: { flex: 1, fontSize: 14, fontWeight: '500', color: theme.textSecondary, writingDirection: 'rtl', textAlign: 'right' },

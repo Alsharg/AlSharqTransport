@@ -78,6 +78,7 @@ interface AppContextType {
   rejectCommission: (paymentId: string) => Promise<{ error: string | null }>;
   setDriverStatus: (status: string) => Promise<void>;
   isDataLoading: boolean;
+  refreshData: () => Promise<void>;
   logAuditAction: (action: string, targetType: string, targetId?: string, details?: Record<string, any>) => Promise<void>;
   handleNotificationAction: (notifId: string, action: string, data?: any) => Promise<void>;
   calculateTripPrice: (tripType: string, city?: string, passengers?: number) => number;
@@ -572,7 +573,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       acceptTripDirectly,
       commissionPayments, loadCommissionPayments, getCommissionForTrip,
       uploadReceipt, confirmCommission, rejectCommission,
-      setDriverStatus, isDataLoading,
+      setDriverStatus, isDataLoading, refreshData: loadAllData,
     }}>
       {children}
     </AppContext.Provider>

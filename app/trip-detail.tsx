@@ -12,8 +12,9 @@ import { theme, typography } from '../constants/theme';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../hooks/useAuth';
 import { getTripTypeIcon, getStatusColor, formatTripNumber } from '../services/types';
-import { useLanguage } from '../contexts/LanguageContext';
 import { config } from '../constants/config';
+import TripTimeline from '../components/feature/TripTimeline';
+import TripTimeline from '../components/feature/TripTimeline';
 
 export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -103,6 +104,18 @@ export default function TripDetailScreen() {
           <View style={[styles.statusIndicator, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusLabel, { color: statusColor }]}>{tripStatus(trip.status)}</Text>
         </Animated.View>
+
+        {/* Trip Status Timeline — visible for client and when not driver-assigned view */}
+        {(userRole === 'client' || trip.status === 'completed' || trip.status === 'cancelled') ? (
+          <Animated.View entering={FadeInDown.duration(400).delay(110)}>
+            <TripTimeline
+              status={trip.status}
+              createdAt={trip.created_at}
+              updatedAt={trip.updated_at}
+              completedAt={trip.completed_at}
+            />
+          </Animated.View>
+        ) : null}
 
         {isDriver && trip.status === 'available' && hasApplied ? (
           <Animated.View entering={FadeInDown.duration(400).delay(120)} style={styles.applicationBanner}>
