@@ -25,6 +25,7 @@ export default function AdminDriverProfileScreen() {
   const [ratings, setRatings] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [levelModal, setLevelModal] = useState(false);
 
   const driverTrips = trips.filter(t => t.driver_id === driverId);
   const driverEarnings = earnings.filter(e => e.driver_id === driverId);
