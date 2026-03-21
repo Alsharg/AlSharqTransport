@@ -247,8 +247,8 @@ export default function TripDetailScreen() {
           </Animated.View>
         ) : null}
 
-        {/* Route Preview Map for monthly subscriptions */}
-        {isMonthly && hasHomeWork && (isDriver || userRole === 'client') ? (
+        {/* Route Preview Map — show for all trips with coordinates */}
+        {hasHomeWork && (isDriver || userRole === 'client' || userRole === 'admin' || userRole === 'supervisor') ? (
           <Animated.View entering={FadeInDown.duration(400).delay(160)} style={{ marginHorizontal: 20 }}>
             <RoutePreview
               home={{ address: trip.home_location || trip.pickup_location, lat: trip.pickup_lat!, lng: trip.pickup_lng! }}
@@ -291,8 +291,8 @@ export default function TripDetailScreen() {
           </Animated.View>
         ) : null}
 
-        {/* Non-assigned view - type + route */}
-        {!isAssigned && !(isDriver && isMonthly) ? (
+        {/* Non-assigned view - type + route (for trips without map coords) */}
+        {!isAssigned && !(isDriver && isMonthly) && !hasHomeWork ? (
           <>
             <Animated.View entering={FadeInDown.duration(400).delay(150)} style={styles.typeCard}>
               <View style={[styles.typeIconLarge, { backgroundColor: statusColor + '15' }]}>

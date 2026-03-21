@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, ScrollView, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
@@ -9,6 +9,9 @@ import { useAlert } from '@/template';
 import { theme, typography } from '../../constants/theme';
 import { useApp } from '../../contexts/AppContext';
 import { Trip } from '../../services/types';
+import { LocationPicker } from '../../components/maps/LocationPicker';
+import { RoutePreview } from '../../components/maps/RoutePreview';
+import { calculateMonthlyPrice, RouteInfo } from '../../services/distance';
 
 type TripType = Trip['type'];
 
@@ -33,11 +36,21 @@ export default function TripFormScreen() {
 
   const [type, setType] = useState<TripType>(existingTrip?.type || 'monthly');
   const [city, setCity] = useState(existingTrip?.city || '');
-  const [homeLocation, setHomeLocation] = useState(existingTrip?.home_location || existingTrip?.pickup_location || '');
-  const [workLocation, setWorkLocation] = useState(existingTrip?.work_location || existingTrip?.dropoff_location || '');
+  const [homeLocationText, setHomeLocationText] = useState(existingTrip?.home_location || existingTrip?.pickup_location || '');
+  const [workLocationText, setWorkLocationText] = useState(existingTrip?.work_location || existingTrip?.dropoff_location || '');
+  const [homeLocationMap, setHomeLocationMap] = useState<{ address: string; lat: number; lng: number } | null>(
+    existingTrip?.pickup_lat && existingTrip?.pickup_lng
+      ? { address: existingTrip.home_location || existingTrip.pickup_location, lat: existingTrip.pickup_lat, lng: existingTrip.pickup_lng }
+      : null
+  );
+  const [workLocationMap, setWorkLocationMap] = useState<{ address: string; lat: number; lng: number } | null>(
+    existingTrip?.dropoff_lat && existingTrip?.dropoff_lng
+      ? { address: existingTrip.work_location || existingTrip.dropoff_location, lat: existingTrip.dropoff_lat, lng: existingTrip.dropoff_lng }
+      : null
+  );
   const [passengers, setPassengers] = useState(String(existingTrip?.passengers || '1'));
   const [gender, setGender] = useState<'male' | 'female'>(existingTrip?.passenger_gender || 'male');
-  const [workDays, setWorkDays] = useState<string[]>(existingTrip?.work_days ? existingTrip.work_days.split(',') : []);
+  const [workDays, setWorkDays] = useState<string[]>(existingTrip?.work_days ? existingTrip.work_days.split(',').map(d => d.trim()) : []);
   const [offDays, setOffDays] = useState(existingTrip?.off_days || '');
   const [departureTime, setDepartureTime] = useState(existingTrip?.departure_time || existingTrip?.scheduled_time || '');
   const [returnTime, setReturnTime] = useState(existingTrip?.return_time || '');
@@ -47,13 +60,36 @@ export default function TripFormScreen() {
   const [notes, setNotes] = useState(existingTrip?.notes || '');
   const [paymentType, setPaymentType] = useState<'prepaid' | 'deferred'>(existingTrip?.payment_type || 'prepaid');
   const [saving, setSaving] = useState(false);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
+  const [useMapPicker, setUseMapPicker] = useState(!!homeLocationMap);
+
+  // Sync text fields with map selections
+  useEffect(() => {
+    if (homeLocationMap) setHomeLocationText(homeLocationMap.address);
+  }, [homeLocationMap]);
+  useEffect(() => {
+    if (workLocationMap) setWorkLocationText(workLocationMap.address);
+  }, [workLocationMap]);
+
+  // Auto-calculate suggested price when route info changes
+  const handleRouteCalculated = useCallback((info: RouteInfo) => {
+    setRouteInfo(info);
+    if (!price || price === '0') {
+      const daysCount = workDays.length || 5;
+      const passCount = parseInt(passengers) || 1;
+      const pricing = calculateMonthlyPrice(info.distanceKm, 0.8, 100, daysCount, passCount, 15);
+      setPrice(String(pricing.totalMonthly));
+    }
+  }, [price, workDays.length, passengers]);
 
   const toggleWorkDay = (day: string) => {
     setWorkDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
   };
 
   const handleSave = async () => {
-    if (!city.trim() || !homeLocation.trim() || !workLocation.trim() || !departureTime.trim() || !price.trim()) {
+    const finalHome = homeLocationText.trim();
+    const finalWork = workLocationText.trim();
+    if (!city.trim() || !finalHome || !finalWork || !departureTime.trim() || !price.trim()) {
       showAlert('خطأ', 'يرجى ملء جميع الحقول المطلوبة (المدينة، موقع البيت، موقع العمل، الوقت، السعر)');
       return;
     }
@@ -64,13 +100,13 @@ export default function TripFormScreen() {
     }
     setSaving(true);
     const today = new Date().toISOString().split('T')[0];
-    const tripData = {
+    const tripData: any = {
       type,
       city: city.trim(),
-      home_location: homeLocation.trim(),
-      work_location: workLocation.trim(),
-      pickup_location: homeLocation.trim(),
-      dropoff_location: workLocation.trim(),
+      home_location: finalHome,
+      work_location: finalWork,
+      pickup_location: finalHome,
+      dropoff_location: finalWork,
       scheduled_time: departureTime.trim(),
       scheduled_date: today,
       departure_time: departureTime.trim(),
@@ -85,6 +121,15 @@ export default function TripFormScreen() {
       notes: notes.trim(),
       payment_type: paymentType,
     };
+    // Add coordinates if map was used
+    if (homeLocationMap) {
+      tripData.pickup_lat = homeLocationMap.lat;
+      tripData.pickup_lng = homeLocationMap.lng;
+    }
+    if (workLocationMap) {
+      tripData.dropoff_lat = workLocationMap.lat;
+      tripData.dropoff_lng = workLocationMap.lng;
+    }
 
     if (isEdit && tripId) {
       const result = await updateTrip(tripId, tripData);
@@ -124,11 +169,58 @@ export default function TripFormScreen() {
           <Text style={styles.label}>المدينة *</Text>
           <TextInput value={city} onChangeText={setCity} placeholder="مثال: الرياض" placeholderTextColor={theme.textMuted} style={styles.input} textAlign="right" />
 
-          <Text style={styles.label}>موقع البيت *</Text>
-          <TextInput value={homeLocation} onChangeText={setHomeLocation} placeholder="حي، شارع، رقم المبنى" placeholderTextColor={theme.textMuted} style={styles.input} textAlign="right" />
+          {/* Toggle: Text input vs Map picker */}
+          <Pressable onPress={() => setUseMapPicker(!useMapPicker)} style={styles.mapToggleBtn}>
+            <MaterialIcons name={useMapPicker ? 'map' : 'edit'} size={18} color={theme.primary} />
+            <Text style={styles.mapToggleText}>{useMapPicker ? 'تحديد الموقع من الخريطة (مفعل)' : 'تفعيل تحديد الموقع من الخريطة'}</Text>
+            <MaterialIcons name={useMapPicker ? 'toggle-on' : 'toggle-off'} size={28} color={useMapPicker ? theme.success : theme.textMuted} />
+          </Pressable>
 
-          <Text style={styles.label}>موقع العمل *</Text>
-          <TextInput value={workLocation} onChangeText={setWorkLocation} placeholder="اسم الشركة، الموقع" placeholderTextColor={theme.textMuted} style={styles.input} textAlign="right" />
+          {useMapPicker ? (
+            <View>
+              <LocationPicker
+                label="موقع البيت (نقطة الانطلاق)"
+                icon="home"
+                iconColor={theme.success}
+                value={homeLocationMap}
+                onChange={setHomeLocationMap}
+              />
+              <LocationPicker
+                label="موقع العمل (الوجهة)"
+                icon="work"
+                iconColor={theme.error}
+                value={workLocationMap}
+                onChange={setWorkLocationMap}
+              />
+
+              {/* Route Preview Map */}
+              {homeLocationMap && workLocationMap ? (
+                <RoutePreview
+                  home={homeLocationMap}
+                  work={workLocationMap}
+                  onRouteCalculated={handleRouteCalculated}
+                />
+              ) : null}
+
+              {/* Distance Info */}
+              {routeInfo ? (
+                <View style={styles.distanceInfoCard}>
+                  <MaterialIcons name="straighten" size={18} color={theme.primary} />
+                  <Text style={styles.distanceInfoText}>
+                    المسافة: {routeInfo.distanceText} | الوقت: {routeInfo.durationText} | ذهاب وإياب: {(routeInfo.distanceKm * 2).toFixed(1)} كم
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.label}>موقع البيت *</Text>
+              <TextInput value={homeLocationText} onChangeText={setHomeLocationText} placeholder="حي، شارع، رقم المبنى" placeholderTextColor={theme.textMuted} style={styles.input} textAlign="right" />
+
+              <Text style={styles.label}>موقع العمل *</Text>
+              <TextInput value={workLocationText} onChangeText={setWorkLocationText} placeholder="اسم الشركة، الموقع" placeholderTextColor={theme.textMuted} style={styles.input} textAlign="right" />
+            </View>
+          )}
 
           <Text style={styles.sectionLabel}>بيانات الراكب</Text>
 
@@ -254,4 +346,8 @@ const styles = StyleSheet.create({
   bottomBar: { paddingHorizontal: 16, paddingTop: 12, backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.border },
   saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.primary, paddingVertical: 16, borderRadius: theme.radiusMedium },
   saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  mapToggleBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: theme.primary + '08', borderRadius: theme.radiusMedium, borderWidth: 1.5, borderColor: theme.primary + '20', marginTop: 12, marginBottom: 12 },
+  mapToggleText: { flex: 1, fontSize: 13, fontWeight: '700', color: theme.primary, writingDirection: 'rtl' as const, textAlign: 'right' },
+  distanceInfoCard: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: theme.primary + '08', borderRadius: theme.radiusMedium, borderWidth: 1, borderColor: theme.primary + '20' },
+  distanceInfoText: { flex: 1, fontSize: 12, fontWeight: '600', color: theme.primary, writingDirection: 'rtl' as const, textAlign: 'right' },
 });

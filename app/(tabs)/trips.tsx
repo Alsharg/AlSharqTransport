@@ -10,6 +10,7 @@ import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../hooks/useAuth';
 import { Trip, getTripTypeIcon, getStatusColor, getTripTypeLabel, getTripStatusLabel, formatTripNumber } from '../../services/types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { RoutePreview } from '../../components/maps/RoutePreview';
 
 type FilterStatus = 'all' | 'available' | 'accepted' | 'inProgress' | 'completed' | 'cancelled';
 const FILTERS: { id: FilterStatus; label: string }[] = [
@@ -42,61 +43,90 @@ export default function TripsScreen() {
     return trip.driver_id === userId && trip.status === activeFilter;
   }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+  const [expandedRouteId, setExpandedRouteId] = useState<string | null>(null);
+
   const renderTrip = ({ item }: { item: Trip }) => {
     const statusColor = getStatusColor(item.status);
     const myApp = item.status === 'available' ? getMyApplication(item.id) : undefined;
     const tripNum = formatTripNumber(item.trip_number);
+    const hasCoords = item.pickup_lat && item.pickup_lng && item.dropoff_lat && item.dropoff_lng;
+    const isMyTrip = item.driver_id === userId;
+    const showRoute = expandedRouteId === item.id;
+
     return (
-      <Pressable onPress={() => router.push({ pathname: '/trip-detail', params: { id: item.id } })} style={({ pressed }) => [styles.tripCard, pressed && { opacity: 0.9 }]}>
-        <View style={styles.tripHeader}>
-          <View style={styles.tripLeft}>
-            <View style={[styles.typeIcon, { backgroundColor: statusColor + '15' }]}>
-              <MaterialIcons name={getTripTypeIcon(item.type) as any} size={22} color={statusColor} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {tripNum ? <View style={styles.tripNumBadge}><Text style={styles.tripNumText}>{tripNum}</Text></View> : null}
-                <Text style={styles.tripType}>{tripType(item.type)}</Text>
+      <View>
+        <Pressable onPress={() => router.push({ pathname: '/trip-detail', params: { id: item.id } })} style={({ pressed }) => [styles.tripCard, pressed && { opacity: 0.9 }]}>
+          <View style={styles.tripHeader}>
+            <View style={styles.tripLeft}>
+              <View style={[styles.typeIcon, { backgroundColor: statusColor + '15' }]}>
+                <MaterialIcons name={getTripTypeIcon(item.type) as any} size={22} color={statusColor} />
               </View>
-              <Text style={styles.tripTime}>{item.scheduled_time} - {item.scheduled_date}</Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {tripNum ? <View style={styles.tripNumBadge}><Text style={styles.tripNumText}>{tripNum}</Text></View> : null}
+                  <Text style={styles.tripType}>{tripType(item.type)}</Text>
+                </View>
+                <Text style={styles.tripTime}>{item.scheduled_time} - {item.scheduled_date}</Text>
+              </View>
+            </View>
+            <View style={styles.tripRight}>
+              <Text style={styles.tripPrice}>{item.price} {t.currency}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
+                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                <Text style={[styles.statusText, { color: statusColor }]}>{tripStatus(item.status)}</Text>
+              </View>
             </View>
           </View>
-          <View style={styles.tripRight}>
-            <Text style={styles.tripPrice}>{item.price} {t.currency}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
-              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-              <Text style={[styles.statusText, { color: statusColor }]}>{tripStatus(item.status)}</Text>
+          <View style={styles.routeSection}>
+            <View style={styles.routeIndicator}>
+              <View style={[styles.routeCircle, { backgroundColor: theme.success }]} />
+              <View style={styles.routeDash} />
+              <View style={[styles.routeCircle, { backgroundColor: theme.error }]} />
+            </View>
+            <View style={styles.routeTexts}>
+              <Text style={styles.routeAddress} numberOfLines={1}>{item.pickup_location}</Text>
+              <Text style={styles.routeAddress} numberOfLines={1}>{item.dropoff_location}</Text>
             </View>
           </View>
-        </View>
-        <View style={styles.routeSection}>
-          <View style={styles.routeIndicator}>
-            <View style={[styles.routeCircle, { backgroundColor: theme.success }]} />
-            <View style={styles.routeDash} />
-            <View style={[styles.routeCircle, { backgroundColor: theme.error }]} />
+          {item.status === 'available' && myApp ? (
+            <View style={[styles.appStatusBar, { backgroundColor: myApp.status === 'pending' ? '#78350F' : myApp.status === 'accepted' ? '#064E3B' : '#7F1D1D' }]}>
+              <MaterialIcons
+                name={myApp.status === 'pending' ? 'hourglass-top' : myApp.status === 'accepted' ? 'check-circle' : 'cancel'}
+                size={14}
+                color={myApp.status === 'pending' ? '#FBBF24' : myApp.status === 'accepted' ? '#22C55E' : '#EF4444'}
+              />
+              <Text style={[styles.appStatusText, { color: myApp.status === 'pending' ? '#FBBF24' : myApp.status === 'accepted' ? '#22C55E' : '#EF4444' }]}>
+                {myApp.status === 'pending' ? t.waitingApproval : myApp.status === 'accepted' ? t.success : t.error}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Map action row */}
+          <View style={styles.mapActionRow}>
+            <Pressable onPress={() => router.push({ pathname: '/trip-map', params: { id: item.id } })} style={styles.mapBtn}>
+              <MaterialIcons name="map" size={16} color={theme.primaryGlow} />
+              <Text style={styles.mapBtnText}>{t.viewMap}</Text>
+            </Pressable>
+            {hasCoords ? (
+              <Pressable onPress={() => setExpandedRouteId(showRoute ? null : item.id)} style={styles.routeToggleBtn}>
+                <MaterialIcons name="route" size={16} color={theme.accent} />
+                <Text style={styles.routeToggleText}>{showRoute ? 'إخفاء المسار' : 'عرض المسار'}</Text>
+                <MaterialIcons name={showRoute ? 'expand-less' : 'expand-more'} size={16} color={theme.accent} />
+              </Pressable>
+            ) : null}
           </View>
-          <View style={styles.routeTexts}>
-            <Text style={styles.routeAddress} numberOfLines={1}>{item.pickup_location}</Text>
-            <Text style={styles.routeAddress} numberOfLines={1}>{item.dropoff_location}</Text>
-          </View>
-        </View>
-        {item.status === 'available' && myApp ? (
-          <View style={[styles.appStatusBar, { backgroundColor: myApp.status === 'pending' ? '#78350F' : myApp.status === 'accepted' ? '#064E3B' : '#7F1D1D' }]}>
-            <MaterialIcons
-              name={myApp.status === 'pending' ? 'hourglass-top' : myApp.status === 'accepted' ? 'check-circle' : 'cancel'}
-              size={14}
-              color={myApp.status === 'pending' ? '#FBBF24' : myApp.status === 'accepted' ? '#22C55E' : '#EF4444'}
+        </Pressable>
+
+        {/* Expanded Route Preview */}
+        {showRoute && hasCoords ? (
+          <View style={styles.routePreviewWrap}>
+            <RoutePreview
+              home={{ address: item.home_location || item.pickup_location, lat: item.pickup_lat!, lng: item.pickup_lng! }}
+              work={{ address: item.work_location || item.dropoff_location, lat: item.dropoff_lat!, lng: item.dropoff_lng! }}
             />
-            <Text style={[styles.appStatusText, { color: myApp.status === 'pending' ? '#FBBF24' : myApp.status === 'accepted' ? '#22C55E' : '#EF4444' }]}>
-              {myApp.status === 'pending' ? t.waitingApproval : myApp.status === 'accepted' ? t.success : t.error}
-            </Text>
           </View>
         ) : null}
-        <Pressable onPress={() => router.push({ pathname: '/trip-map', params: { id: item.id } })} style={styles.mapBtn}>
-          <MaterialIcons name="map" size={16} color={theme.primaryGlow} />
-          <Text style={styles.mapBtnText}>{t.viewMap}</Text>
-        </Pressable>
-      </Pressable>
+      </View>
     );
   };
 
@@ -162,8 +192,12 @@ const styles = StyleSheet.create({
   routeDash: { width: 2, height: 20, backgroundColor: theme.border },
   routeTexts: { flex: 1, gap: 12 },
   routeAddress: { ...typography.body, writingDirection: 'rtl', textAlign: 'right' },
-  mapBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.borderLight },
-  mapBtnText: { fontSize: 13, fontWeight: '600', color: theme.primaryGlow, writingDirection: 'rtl' },
+  mapActionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.borderLight },
+  mapBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  mapBtnText: { fontSize: 13, fontWeight: '600', color: theme.primaryGlow, writingDirection: 'rtl' as const },
+  routeToggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  routeToggleText: { fontSize: 12, fontWeight: '600', color: theme.accent, writingDirection: 'rtl' as const },
+  routePreviewWrap: { marginHorizontal: 16, marginBottom: 6, marginTop: -4 },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 60 },
   emptyTitle: { ...typography.subtitle, textAlign: 'center', marginTop: 16 },
   appStatusBar: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: theme.radiusMedium },

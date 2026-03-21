@@ -10,6 +10,7 @@ import { theme, typography } from '../../../constants/theme';
 import { useApp } from '../../../contexts/AppContext';
 import { Trip, getTripTypeLabel, getTripTypeIcon, getStatusColor, getTripStatusLabel, formatTripNumber } from '../../../services/types';
 import { ADMIN_WHATSAPP } from '../../../constants/i18n';
+import { RoutePreview } from '../../../components/maps/RoutePreview';
 
 type TripFilter = 'all' | 'subscriptions' | 'available' | 'accepted' | 'confirmed' | 'inProgress' | 'completed' | 'cancelled' | 'archived' | 'increase_pending';
 
@@ -35,6 +36,7 @@ export default function AdminTripsScreen() {
   const [statusMenuTripId, setStatusMenuTripId] = useState<string | null>(null);
   const [clientModal, setClientModal] = useState<Trip | null>(null);
   const [driverPickerTrip, setDriverPickerTrip] = useState<Trip | null>(null);
+  const [expandedRouteId, setExpandedRouteId] = useState<string | null>(null);
 
   // Subscription stats
   const subscriptionTrips = useMemo(() => trips.filter(t => t.type === 'monthly' || t.type === 'private'), [trips]);
@@ -226,6 +228,25 @@ export default function AdminTripsScreen() {
                   <MaterialIcons name="work" size={14} color={theme.primary} />
                   <Text style={styles.routeText} numberOfLines={1}>{trip.work_location || trip.dropoff_location}</Text>
                 </View>
+
+                {/* Map route toggle */}
+                {trip.pickup_lat && trip.pickup_lng && trip.dropoff_lat && trip.dropoff_lng ? (
+                  <Pressable onPress={() => setExpandedRouteId(expandedRouteId === trip.id ? null : trip.id)} style={styles.adminRouteToggle}>
+                    <MaterialIcons name="route" size={14} color={theme.primary} />
+                    <Text style={styles.adminRouteToggleText}>{expandedRouteId === trip.id ? 'إخفاء الخريطة' : 'عرض المسار على الخريطة'}</Text>
+                    <MaterialIcons name={expandedRouteId === trip.id ? 'expand-less' : 'expand-more'} size={16} color={theme.primary} />
+                  </Pressable>
+                ) : null}
+
+                {/* Route Preview Inline */}
+                {expandedRouteId === trip.id && trip.pickup_lat && trip.pickup_lng && trip.dropoff_lat && trip.dropoff_lng ? (
+                  <View style={styles.adminRoutePreview}>
+                    <RoutePreview
+                      home={{ address: trip.home_location || trip.pickup_location, lat: trip.pickup_lat, lng: trip.pickup_lng }}
+                      work={{ address: trip.work_location || trip.dropoff_location, lat: trip.dropoff_lat, lng: trip.dropoff_lng }}
+                    />
+                  </View>
+                ) : null}
 
                 {trip.driver_id ? (
                   <View style={styles.driverRow}>
@@ -503,6 +524,9 @@ const styles = StyleSheet.create({
 
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: theme.backgroundSecondary, borderRadius: theme.radiusMedium },
   routeText: { fontSize: 12, color: theme.textSecondary, flex: 1, writingDirection: 'rtl' as const },
+  adminRouteToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 10, paddingVertical: 8, backgroundColor: theme.primary + '08', borderRadius: theme.radiusMedium, borderWidth: 1, borderColor: theme.primary + '20' },
+  adminRouteToggleText: { fontSize: 12, fontWeight: '600', color: theme.primary, writingDirection: 'rtl' as const },
+  adminRoutePreview: { marginBottom: 10 },
   driverRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
   driverText: { fontSize: 13, fontWeight: '600', color: theme.primary },
 
