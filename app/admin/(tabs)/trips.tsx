@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Modal } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -11,10 +11,12 @@ import { useApp } from '../../../contexts/AppContext';
 import { Trip, getTripTypeLabel, getTripTypeIcon, getStatusColor, getTripStatusLabel, formatTripNumber } from '../../../services/types';
 import { ADMIN_WHATSAPP } from '../../../constants/i18n';
 
-type TripFilter = 'all' | 'available' | 'accepted' | 'confirmed' | 'inProgress' | 'completed' | 'cancelled' | 'archived';
+type TripFilter = 'all' | 'subscriptions' | 'available' | 'accepted' | 'confirmed' | 'inProgress' | 'completed' | 'cancelled' | 'archived' | 'increase_pending';
 
-const FILTERS: { id: TripFilter; label: string }[] = [
+const FILTERS: { id: TripFilter; label: string; icon?: string }[] = [
   { id: 'all', label: 'الكل' },
+  { id: 'subscriptions', label: 'اشتراكات', icon: 'event-repeat' },
+  { id: 'increase_pending', label: 'زيادات معلقة', icon: 'trending-up' },
   { id: 'available', label: 'متاح' },
   { id: 'accepted', label: 'مقبول' },
   { id: 'confirmed', label: 'تم الاتفاق' },
@@ -28,15 +30,22 @@ export default function AdminTripsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { showAlert } = useAlert();
-  const { trips, deleteTrip, cancelTrip, archiveTrip, confirmTrip, allDriversList, getApplicationsForTrip, updateTrip: updateTripAction, logAuditAction } = useApp();
+  const { trips, deleteTrip, cancelTrip, archiveTrip, confirmTrip, allDriversList, getApplicationsForTrip, updateTrip: updateTripAction, logAuditAction, approvePriceIncrease, rejectPriceIncrease } = useApp();
   const [filter, setFilter] = useState<TripFilter>('all');
   const [statusMenuTripId, setStatusMenuTripId] = useState<string | null>(null);
   const [clientModal, setClientModal] = useState<Trip | null>(null);
   const [driverPickerTrip, setDriverPickerTrip] = useState<Trip | null>(null);
 
+  // Subscription stats
+  const subscriptionTrips = useMemo(() => trips.filter(t => t.type === 'monthly' || t.type === 'private'), [trips]);
+  const activeSubscriptions = subscriptionTrips.filter(t => ['available', 'accepted', 'agreed', 'confirmed', 'inProgress'].includes(t.status));
+  const pendingIncreases = trips.filter(t => t.proposed_increase && t.proposed_increase > 0 && t.increase_admin_approval === 'pending');
+
   const filtered = trips
     .filter(t => {
       if (filter === 'all') return t.status !== 'archived';
+      if (filter === 'subscriptions') return (t.type === 'monthly' || t.type === 'private') && t.status !== 'archived';
+      if (filter === 'increase_pending') return t.proposed_increase && t.proposed_increase > 0 && t.increase_admin_approval === 'pending';
       if (filter === 'confirmed') return t.status === 'confirmed' || t.status === 'agreed';
       return t.status === filter;
     })
@@ -53,7 +62,7 @@ export default function AdminTripsScreen() {
     switch (action) {
       case 'confirmed':
         if (trip.driver_id) {
-          showAlert('تم الاتفاق', `سيتم تأكيد الاتفاق مع السائق ${getDriverName(trip.driver_id)} وإخفاء المشوار من باقي السائقين.`, [
+          showAlert('تم الاتفاق', `سيتم تأكيد الاتفاق مع السائق ${getDriverName(trip.driver_id)}.`, [
             { text: 'إلغاء', style: 'cancel' },
             { text: 'تأكيد', onPress: async () => {
               const result = await confirmTrip(trip.id, trip.driver_id!);
@@ -61,13 +70,10 @@ export default function AdminTripsScreen() {
               else showAlert('خطأ', result.error);
             }},
           ]);
-        } else {
-          // No driver assigned yet — show driver picker
-          setDriverPickerTrip(trip);
-        }
+        } else { setDriverPickerTrip(trip); }
         break;
       case 'cancel':
-        showAlert('إلغاء المشوار', 'سيتم إلغاء المشوار وإخفاؤه من جميع السائقين.', [
+        showAlert('إلغاء المشوار', 'سيتم إلغاء المشوار.', [
           { text: 'تراجع', style: 'cancel' },
           { text: 'إلغاء', style: 'destructive', onPress: () => cancelTrip(trip.id) },
         ]);
@@ -79,7 +85,7 @@ export default function AdminTripsScreen() {
         ]);
         break;
       case 'delete':
-        showAlert('حذف نهائي', 'سيتم حذف المشوار نهائياً من قاعدة البيانات.', [
+        showAlert('حذف نهائي', 'سيتم حذف المشوار نهائياً.', [
           { text: 'تراجع', style: 'cancel' },
           { text: 'حذف', style: 'destructive', onPress: () => deleteTrip(trip.id) },
         ]);
@@ -90,12 +96,25 @@ export default function AdminTripsScreen() {
   const handlePickDriver = async (trip: Trip, driverId: string) => {
     setDriverPickerTrip(null);
     const result = await confirmTrip(trip.id, driverId);
-    if (!result.error) {
-      showAlert('تم', 'تم تأكيد الاتفاق وتعيين السائق بنجاح');
-    } else showAlert('خطأ', result.error);
+    if (!result.error) showAlert('تم', 'تم تأكيد الاتفاق وتعيين السائق');
+    else showAlert('خطأ', result.error);
   };
 
-  // Get active/approved drivers for picker
+  const handleAdminApproveIncrease = (trip: Trip) => {
+    showAlert('اعتماد زيادة السعر', `هل تعتمد زيادة ${trip.proposed_increase} ر.س على المشوار ${formatTripNumber(trip.trip_number)}؟\nالسعر الحالي: ${trip.price} ر.س\nالسعر الجديد: ${trip.price + (trip.proposed_increase || 0)} ر.س`, [
+      { text: 'رفض', style: 'destructive', onPress: async () => {
+        const result = await rejectPriceIncrease(trip.id, 'admin');
+        if (result.error) showAlert('خطأ', result.error);
+        else showAlert('تم', 'تم رفض طلب الزيادة');
+      }},
+      { text: 'اعتماد', onPress: async () => {
+        const result = await approvePriceIncrease(trip.id, 'admin');
+        if (result.error) showAlert('خطأ', result.error);
+        else showAlert('تم', 'تم اعتماد الزيادة');
+      }},
+    ]);
+  };
+
   const activeDrivers = allDriversList.filter(d => d.is_active && d.approval_status === 'approved');
 
   return (
@@ -107,11 +126,34 @@ export default function AdminTripsScreen() {
         </Pressable>
       </View>
 
+      {/* Subscription Dashboard Summary */}
+      <View style={styles.dashboardRow}>
+        <Pressable onPress={() => setFilter('subscriptions')} style={[styles.dashCard, filter === 'subscriptions' && { borderColor: theme.primary }]}>
+          <MaterialIcons name="event-repeat" size={20} color={theme.primary} />
+          <Text style={styles.dashValue}>{activeSubscriptions.length}</Text>
+          <Text style={styles.dashLabel}>اشتراكات نشطة</Text>
+        </Pressable>
+        <Pressable onPress={() => setFilter('increase_pending')} style={[styles.dashCard, filter === 'increase_pending' && { borderColor: '#F59E0B' }]}>
+          <MaterialIcons name="trending-up" size={20} color="#F59E0B" />
+          <Text style={[styles.dashValue, { color: '#F59E0B' }]}>{pendingIncreases.length}</Text>
+          <Text style={styles.dashLabel}>زيادات معلقة</Text>
+        </Pressable>
+        <View style={styles.dashCard}>
+          <MaterialIcons name="payments" size={20} color={theme.accent} />
+          <Text style={[styles.dashValue, { color: theme.accent }]}>{activeSubscriptions.reduce((s, t) => s + Number(t.price), 0)}</Text>
+          <Text style={styles.dashLabel}>إيراد شهري</Text>
+        </View>
+      </View>
+
       <View style={styles.filterContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
           {FILTERS.map(f => (
             <Pressable key={f.id} onPress={() => setFilter(f.id)} style={[styles.filterChip, filter === f.id && styles.filterActive]}>
+              {f.icon ? <MaterialIcons name={f.icon as any} size={14} color={filter === f.id ? theme.primary : theme.textMuted} /> : null}
               <Text style={[styles.filterText, filter === f.id && styles.filterTextActive]}>{f.label}</Text>
+              {f.id === 'increase_pending' && pendingIncreases.length > 0 ? (
+                <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>{pendingIncreases.length}</Text></View>
+              ) : null}
             </Pressable>
           ))}
         </ScrollView>
@@ -125,11 +167,13 @@ export default function AdminTripsScreen() {
           const apps = getApplicationsForTrip(trip.id);
           const pendingApps = apps.filter(a => a.status === 'pending').length;
           const tripNum = formatTripNumber(trip.trip_number);
+          const isMonthly = trip.type === 'monthly' || trip.type === 'private';
+          const hasPendingIncrease = trip.proposed_increase && trip.proposed_increase > 0 && trip.increase_admin_approval === 'pending';
+          const increaseFullyApproved = trip.increase_client_approval === 'approved' && trip.increase_admin_approval === 'approved';
 
           return (
             <Animated.View key={trip.id} entering={FadeInDown.duration(200).delay(index * 30)}>
-              <View style={styles.tripCard}>
-                {/* Header: trip number + type + price + status */}
+              <View style={[styles.tripCard, hasPendingIncrease ? { borderColor: '#F59E0B50', borderWidth: 2 } : {}]}>
                 <View style={styles.tripTop}>
                   <View style={[styles.typeIcon, { backgroundColor: statusColor + '20' }]}>
                     <MaterialIcons name={getTripTypeIcon(trip.type) as any} size={20} color={statusColor} />
@@ -139,7 +183,7 @@ export default function AdminTripsScreen() {
                       {tripNum ? <View style={styles.tripNumberBadge}><Text style={styles.tripNumberText}>{tripNum}</Text></View> : null}
                       <Text style={styles.tripType}>{trip.city || getTripTypeLabel(trip.type)}</Text>
                     </View>
-                    <Text style={styles.tripTime}>{trip.departure_time || trip.scheduled_time}{trip.return_time ? ` \u2194 ${trip.return_time}` : ''}</Text>
+                    <Text style={styles.tripTime}>{trip.departure_time || trip.scheduled_time}{trip.return_time ? ` ↔ ${trip.return_time}` : ''}</Text>
                   </View>
                   <View style={styles.tripRight}>
                     <Text style={styles.tripPrice}>{trip.price} ر.س</Text>
@@ -150,7 +194,31 @@ export default function AdminTripsScreen() {
                   </View>
                 </View>
 
-                {/* Route row */}
+                {/* Subscription info badges */}
+                {isMonthly ? (
+                  <View style={styles.subBadgeRow}>
+                    {trip.passengers ? (
+                      <View style={styles.subBadge}>
+                        <MaterialIcons name="people" size={12} color={theme.primary} />
+                        <Text style={styles.subBadgeText}>{trip.passengers} ركاب</Text>
+                      </View>
+                    ) : null}
+                    {trip.work_days ? (
+                      <View style={styles.subBadge}>
+                        <MaterialIcons name="date-range" size={12} color={theme.accent} />
+                        <Text style={styles.subBadgeText}>{trip.work_days.split(',').length} أيام</Text>
+                      </View>
+                    ) : null}
+                    {trip.passenger_gender ? (
+                      <View style={styles.subBadge}>
+                        <MaterialIcons name={trip.passenger_gender === 'female' ? 'female' : 'male'} size={12} color={trip.passenger_gender === 'female' ? '#EC4899' : '#3B82F6'} />
+                        <Text style={styles.subBadgeText}>{trip.passenger_gender === 'female' ? 'إناث' : 'ذكور'}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {/* Route */}
                 <View style={styles.routeRow}>
                   <MaterialIcons name="home" size={14} color={theme.success} />
                   <Text style={styles.routeText} numberOfLines={1}>{trip.home_location || trip.pickup_location}</Text>
@@ -159,11 +227,50 @@ export default function AdminTripsScreen() {
                   <Text style={styles.routeText} numberOfLines={1}>{trip.work_location || trip.dropoff_location}</Text>
                 </View>
 
-                {/* Driver */}
                 {trip.driver_id ? (
                   <View style={styles.driverRow}>
                     <MaterialIcons name="person" size={14} color={theme.primary} />
                     <Text style={styles.driverText}>{getDriverName(trip.driver_id)}</Text>
+                  </View>
+                ) : null}
+
+                {/* Price Increase Admin Action */}
+                {hasPendingIncrease ? (
+                  <View style={styles.increaseActionCard}>
+                    <View style={styles.increaseActionHeader}>
+                      <MaterialIcons name="trending-up" size={18} color="#F59E0B" />
+                      <Text style={styles.increaseActionTitle}>طلب زيادة: +{trip.proposed_increase} ر.س</Text>
+                    </View>
+                    <View style={styles.increaseApprovalStatus}>
+                      <View style={styles.increaseApprovalItem}>
+                        <MaterialIcons name={trip.increase_client_approval === 'approved' ? 'check-circle' : 'hourglass-top'} size={14} color={trip.increase_client_approval === 'approved' ? theme.success : '#F59E0B'} />
+                        <Text style={styles.increaseApprovalLabel}>العميل: {trip.increase_client_approval === 'approved' ? 'وافق' : 'بانتظار'}</Text>
+                      </View>
+                      <View style={styles.increaseApprovalItem}>
+                        <MaterialIcons name="hourglass-top" size={14} color="#F59E0B" />
+                        <Text style={styles.increaseApprovalLabel}>الإدارة: بانتظار</Text>
+                      </View>
+                    </View>
+                    <View style={styles.increaseActionBtns}>
+                      <Pressable onPress={() => handleAdminApproveIncrease(trip)} style={styles.increaseAdminApproveBtn}>
+                        <MaterialIcons name="check" size={16} color="#FFF" />
+                        <Text style={styles.increaseAdminApproveBtnText}>اعتماد</Text>
+                      </Pressable>
+                      <Pressable onPress={() => {
+                        rejectPriceIncrease(trip.id, 'admin');
+                        showAlert('تم', 'تم رفض طلب الزيادة');
+                      }} style={styles.increaseAdminRejectBtn}>
+                        <MaterialIcons name="close" size={16} color={theme.error} />
+                        <Text style={styles.increaseAdminRejectBtnText}>رفض</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : null}
+
+                {increaseFullyApproved && trip.proposed_increase ? (
+                  <View style={[styles.increaseResultBadge, { backgroundColor: theme.success + '12' }]}>
+                    <MaterialIcons name="check-circle" size={14} color={theme.success} />
+                    <Text style={[styles.increaseResultText, { color: theme.success }]}>تمت الموافقة على زيادة +{trip.proposed_increase} ر.س</Text>
                   </View>
                 ) : null}
 
@@ -176,13 +283,12 @@ export default function AdminTripsScreen() {
                   </Pressable>
                 ) : null}
 
-                {/* Quick approve first applicant */}
                 {trip.status === 'available' && pendingApps > 0 ? (
                   <Pressable
                     onPress={() => {
                       const firstApp = apps.find(a => a.status === 'pending');
                       if (firstApp) {
-                        showAlert('موافقة سريعة', `هل تريد الموافقة على السائق ${firstApp.driver_name} لهذا المشوار؟`, [
+                        showAlert('موافقة سريعة', `هل تريد الموافقة على السائق ${firstApp.driver_name}؟`, [
                           { text: 'إلغاء', style: 'cancel' },
                           { text: 'موافقة', onPress: () => handlePickDriver(trip, firstApp.driver_id) },
                         ]);
@@ -195,7 +301,6 @@ export default function AdminTripsScreen() {
                   </Pressable>
                 ) : null}
 
-                {/* Client info button for confirmed trips */}
                 {(trip.status === 'confirmed' || trip.status === 'agreed') ? (
                   <Pressable onPress={() => setClientModal(trip)} style={styles.clientInfoBtn}>
                     <MaterialIcons name="info" size={16} color={theme.success} />
@@ -203,15 +308,12 @@ export default function AdminTripsScreen() {
                   </Pressable>
                 ) : null}
 
-                {/* Actions row — always show "حالة المشوار" + edit */}
                 <View style={styles.actionsRow}>
-                  {/* Status Change Button — main admin action */}
                   <Pressable onPress={() => setStatusMenuTripId(statusMenuTripId === trip.id ? null : trip.id)} style={styles.statusBtn}>
                     <MaterialIcons name="swap-horiz" size={16} color={theme.primary} />
                     <Text style={styles.statusBtnText}>حالة المشوار</Text>
                     <MaterialIcons name={statusMenuTripId === trip.id ? 'expand-less' : 'expand-more'} size={16} color={theme.primary} />
                   </Pressable>
-
                   <Pressable onPress={() => router.push({ pathname: '/admin/trip-form', params: { tripId: trip.id } })} style={styles.iconAction}>
                     <MaterialIcons name="edit" size={16} color={theme.textSecondary} />
                   </Pressable>
@@ -226,7 +328,6 @@ export default function AdminTripsScreen() {
                   ) : null}
                 </View>
 
-                {/* Status dropdown */}
                 {statusMenuTripId === trip.id ? (
                   <Animated.View entering={FadeInDown.duration(150)} style={styles.dropdown}>
                     <Pressable onPress={() => handleStatusAction(trip, 'confirmed')} style={styles.dropdownItem}>
@@ -290,6 +391,9 @@ export default function AdminTripsScreen() {
                   {clientModal.return_time ? <ModalRow label="العودة" value={clientModal.return_time} icon="schedule" /> : null}
                   <ModalRow label="السائق" value={getDriverName(clientModal.driver_id)} icon="directions-car" />
                   {clientModal.trip_number ? <ModalRow label="رقم المشوار" value={formatTripNumber(clientModal.trip_number)} icon="tag" /> : null}
+                  {clientModal.proposed_increase && clientModal.proposed_increase > 0 ? (
+                    <ModalRow label="زيادة مطلوبة" value={`+${clientModal.proposed_increase} ر.س (العميل: ${clientModal.increase_client_approval || 'لم يرد'} | الإدارة: ${clientModal.increase_admin_approval || 'لم يرد'})`} icon="trending-up" highlight />
+                  ) : null}
                 </View>
               </ScrollView>
             ) : null}
@@ -353,22 +457,31 @@ const modalStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
   iconCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
   rowContent: { flex: 1 },
-  label: { fontSize: 12, fontWeight: '500', color: theme.textMuted, writingDirection: 'rtl', textAlign: 'right' },
-  value: { fontSize: 14, fontWeight: '600', color: theme.textPrimary, writingDirection: 'rtl', textAlign: 'right', marginTop: 2 },
+  label: { fontSize: 12, fontWeight: '500', color: theme.textMuted, writingDirection: 'rtl' as const, textAlign: 'right' },
+  value: { fontSize: 14, fontWeight: '600', color: theme.textPrimary, writingDirection: 'rtl' as const, textAlign: 'right', marginTop: 2 },
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.surface },
-  headerTitle: { ...typography.subtitle, writingDirection: 'rtl' },
+  headerTitle: { ...typography.subtitle, writingDirection: 'rtl' as const },
   addBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center' },
+
+  // Dashboard summary
+  dashboardRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingVertical: 14, backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border },
+  dashCard: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 10, backgroundColor: theme.surfaceElevated, borderRadius: theme.radiusMedium, borderWidth: 1.5, borderColor: theme.border },
+  dashValue: { fontSize: 18, fontWeight: '700', color: theme.primary },
+  dashLabel: { fontSize: 10, fontWeight: '600', color: theme.textMuted, writingDirection: 'rtl' as const, textAlign: 'center' },
+
   filterContainer: { height: 56 },
   filterScroll: { paddingHorizontal: 20, paddingVertical: 10, gap: 8 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: theme.radiusFull, backgroundColor: theme.surfaceElevated },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: theme.radiusFull, backgroundColor: theme.surfaceElevated },
   filterActive: { backgroundColor: theme.primary + '30', borderWidth: 1, borderColor: theme.primary },
   filterText: { fontSize: 13, fontWeight: '500', color: theme.textSecondary },
   filterTextActive: { color: theme.primary, fontWeight: '600' },
-  countText: { ...typography.caption, writingDirection: 'rtl', textAlign: 'right', paddingHorizontal: 20, paddingBottom: 10 },
+  filterBadge: { backgroundColor: '#F59E0B', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
+  filterBadgeText: { fontSize: 10, fontWeight: '700', color: '#FFF' },
+  countText: { ...typography.caption, writingDirection: 'rtl' as const, textAlign: 'right', paddingHorizontal: 20, paddingBottom: 10 },
 
   tripCard: { marginHorizontal: 20, marginBottom: 12, padding: 18, backgroundColor: theme.surface, borderRadius: theme.radiusLarge, borderWidth: 1, borderColor: theme.border },
   tripTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
@@ -376,48 +489,61 @@ const styles = StyleSheet.create({
   tripNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   tripNumberBadge: { backgroundColor: theme.primary + '25', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   tripNumberText: { fontSize: 11, fontWeight: '700', color: theme.primary },
-  tripType: { fontSize: 15, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl', textAlign: 'right' },
-  tripTime: { fontSize: 12, color: theme.textMuted, writingDirection: 'rtl', textAlign: 'right', marginTop: 3 },
+  tripType: { fontSize: 15, fontWeight: '700', color: theme.textPrimary, writingDirection: 'rtl' as const, textAlign: 'right' },
+  tripTime: { fontSize: 12, color: theme.textMuted, writingDirection: 'rtl' as const, textAlign: 'right', marginTop: 3 },
   tripRight: { alignItems: 'flex-end', gap: 6 },
   tripPrice: { fontSize: 17, fontWeight: '700', color: theme.accent },
   statusChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radiusFull },
   statusDotInline: { width: 6, height: 6, borderRadius: 3 },
   statusChipText: { fontSize: 10, fontWeight: '700' },
 
+  subBadgeRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  subBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: theme.surfaceElevated, borderRadius: theme.radiusFull, borderWidth: 1, borderColor: theme.border },
+  subBadgeText: { fontSize: 11, fontWeight: '600', color: theme.textSecondary },
+
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: theme.backgroundSecondary, borderRadius: theme.radiusMedium },
-  routeText: { fontSize: 12, color: theme.textSecondary, flex: 1, writingDirection: 'rtl' },
+  routeText: { fontSize: 12, color: theme.textSecondary, flex: 1, writingDirection: 'rtl' as const },
   driverRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
   driverText: { fontSize: 13, fontWeight: '600', color: theme.primary },
+
+  // Price increase admin action
+  increaseActionCard: { marginBottom: 10, padding: 14, backgroundColor: '#FFFBEB', borderRadius: theme.radiusMedium, borderWidth: 1, borderColor: '#FCD34D' },
+  increaseActionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  increaseActionTitle: { fontSize: 14, fontWeight: '700', color: '#92400E', writingDirection: 'rtl' as const },
+  increaseApprovalStatus: { flexDirection: 'row', gap: 16, marginBottom: 10 },
+  increaseApprovalItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  increaseApprovalLabel: { fontSize: 11, fontWeight: '600', color: '#78350F' },
+  increaseActionBtns: { flexDirection: 'row', gap: 10 },
+  increaseAdminApproveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: theme.radiusMedium, backgroundColor: theme.success },
+  increaseAdminApproveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  increaseAdminRejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: theme.radiusMedium, backgroundColor: theme.error + '12', borderWidth: 1, borderColor: theme.error + '30' },
+  increaseAdminRejectBtnText: { fontSize: 14, fontWeight: '700', color: theme.error },
+  increaseResultBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: theme.radiusMedium },
+  increaseResultText: { fontSize: 12, fontWeight: '600', writingDirection: 'rtl' as const },
+
   applicantsBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: theme.primary + '12', borderRadius: theme.radiusMedium, marginBottom: 10 },
-  applicantsText: { flex: 1, fontSize: 13, fontWeight: '600', color: theme.primary, writingDirection: 'rtl' },
-
+  applicantsText: { flex: 1, fontSize: 13, fontWeight: '600', color: theme.primary, writingDirection: 'rtl' as const },
   clientInfoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingVertical: 10, borderRadius: theme.radiusMedium, backgroundColor: theme.success + '15', marginBottom: 10 },
-
   actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: theme.borderLight },
   statusBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', paddingVertical: 12, borderRadius: theme.radiusMedium, backgroundColor: theme.primary + '15', borderWidth: 1, borderColor: theme.primary + '30' },
   statusBtnText: { fontSize: 13, fontWeight: '700', color: theme.primary },
   iconAction: { width: 44, height: 44, borderRadius: 12, backgroundColor: theme.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
   actionText: { fontSize: 13, fontWeight: '600' },
-
   dropdown: { marginTop: 12, padding: 6, backgroundColor: theme.surfaceElevated, borderRadius: theme.radiusMedium, borderWidth: 1, borderColor: theme.border },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
-  dropdownText: { fontSize: 14, fontWeight: '500', color: theme.textPrimary, writingDirection: 'rtl' },
+  dropdownText: { fontSize: 14, fontWeight: '500', color: theme.textPrimary, writingDirection: 'rtl' as const },
   dropdownDivider: { height: 1, backgroundColor: theme.border, marginHorizontal: 12 },
-
   emptyState: { alignItems: 'center', paddingVertical: 60 },
-  emptyText: { ...typography.caption, marginTop: 12, writingDirection: 'rtl' },
-
+  emptyText: { ...typography.caption, marginTop: 12, writingDirection: 'rtl' as const },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: theme.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 24, paddingBottom: 32, maxHeight: '85%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: theme.border, alignSelf: 'center', marginTop: 12, marginBottom: 16 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: theme.borderLight },
-  modalTitle: { ...typography.subtitle, writingDirection: 'rtl', flex: 1, textAlign: 'center' },
+  modalTitle: { ...typography.subtitle, writingDirection: 'rtl' as const, flex: 1, textAlign: 'center' },
   modalCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
   modalBody: { gap: 4 },
-
-  // Driver picker
   driverPickerItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: theme.borderLight },
   driverPickerAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary + '15', alignItems: 'center', justifyContent: 'center' },
-  driverPickerName: { fontSize: 15, fontWeight: '600', color: theme.textPrimary, writingDirection: 'rtl', textAlign: 'right' },
-  driverPickerCode: { fontSize: 12, fontWeight: '600', color: theme.primary, writingDirection: 'rtl', textAlign: 'right', marginTop: 2 },
+  driverPickerName: { fontSize: 15, fontWeight: '600', color: theme.textPrimary, writingDirection: 'rtl' as const, textAlign: 'right' },
+  driverPickerCode: { fontSize: 12, fontWeight: '600', color: theme.primary, writingDirection: 'rtl' as const, textAlign: 'right', marginTop: 2 },
 });

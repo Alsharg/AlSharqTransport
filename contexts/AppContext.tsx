@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Trip, Earning, Announcement, Message, Notification, BonusPenalty, UserProfile, TripApplication, CommissionPayment } from '../services/types';
+import { Trip, Earning, Announcement, Message, Notification, BonusPenalty, UserProfile, TripApplication, CommissionPayment, formatTripNumber } from '../services/types';
 import * as api from '../services/api';
 import { AuthContext } from './AuthContext';
 import { config } from '../constants/config';
@@ -82,6 +82,9 @@ interface AppContextType {
   logAuditAction: (action: string, targetType: string, targetId?: string, details?: Record<string, any>) => Promise<void>;
   handleNotificationAction: (notifId: string, action: string, data?: any) => Promise<void>;
   calculateTripPrice: (tripType: string, city?: string, passengers?: number) => number;
+  requestPriceIncrease: (tripId: string, amount: number) => Promise<{ error: string | null }>;
+  approvePriceIncrease: (tripId: string, approver: 'client' | 'admin') => Promise<{ error: string | null }>;
+  rejectPriceIncrease: (tripId: string, rejector: 'client' | 'admin') => Promise<{ error: string | null }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -476,6 +479,86 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }, [userId, profile, trips, tripApplications]);
 
+  // === Price Increase Functions ===
+  const requestPriceIncreaseAction = useCallback(async (tripId: string, amount: number) => {
+    if (!userId || !profile) return { error: 'غير مسجل الدخول' };
+    const trip = trips.find(t => t.id === tripId);
+    if (!trip) return { error: 'المشوار غير موجود' };
+
+    const result = await api.requestPriceIncrease(tripId, userId, amount);
+    if (result.error) return { error: result.error };
+
+    setTrips(prev => prev.map(t => t.id === tripId ? { ...t, proposed_increase: amount, increase_requested_by: userId, increase_client_approval: 'pending' as const, increase_admin_approval: 'pending' as const } : t));
+
+    // Notify client
+    if (trip.created_by) {
+      await api.createNotification({
+        user_id: trip.created_by,
+        title: 'طلب زيادة سعر',
+        body: `السائق ${profile.full_name || profile.username} يطلب زيادة ${amount} ر.س على اشتراكك (${trip.pickup_location})`,
+        type: 'price_increase', is_read: false,
+      });
+      api.sendPushToUser(trip.created_by, 'طلب زيادة سعر', `زيادة مقترحة: ${amount} ر.س`);
+    }
+    // Notify admins
+    await api.notifyAdmins('طلب زيادة سعر', `${profile.full_name || profile.username} يطلب زيادة ${amount} ر.س على المشوار ${formatTripNumber(trip.trip_number)}`, 'price_increase');
+    logAuditActionRef.current('request_price_increase', 'trip', tripId, { amount, driver: profile.full_name });
+    return { error: null };
+  }, [userId, profile, trips]);
+
+  const approvePriceIncreaseAction = useCallback(async (tripId: string, approver: 'client' | 'admin') => {
+    const result = await api.approvePriceIncrease(tripId, approver);
+    if (result.error) return { error: result.error };
+
+    const updatedTrip = result.data;
+    setTrips(prev => prev.map(t => t.id === tripId ? { ...t, ...updatedTrip } : t));
+
+    const trip = trips.find(t => t.id === tripId);
+    if (trip?.increase_requested_by) {
+      const otherField = approver === 'client' ? 'increase_admin_approval' : 'increase_client_approval';
+      const otherApproved = trip[otherField] === 'approved';
+      if (otherApproved) {
+        // Both approved - notify driver
+        await api.createNotification({
+          user_id: trip.increase_requested_by,
+          title: 'تمت الموافقة على زيادة السعر',
+          body: `تم اعتماد زيادة ${trip.proposed_increase} ر.س. السعر الجديد: ${Number(trip.price) + Number(trip.proposed_increase || 0)} ر.س`,
+          type: 'price_increase_approved', is_read: false,
+        });
+        api.sendPushToUser(trip.increase_requested_by, 'تمت الموافقة على الزيادة', `السعر الجديد: ${Number(trip.price) + Number(trip.proposed_increase || 0)} ر.س`);
+      } else {
+        // Partial approval - notify the other party
+        await api.createNotification({
+          user_id: trip.increase_requested_by,
+          title: `وافق ${approver === 'client' ? 'العميل' : 'الإدارة'} على الزيادة`,
+          body: `بانتظار موافقة ${approver === 'client' ? 'الإدارة' : 'العميل'} لاعتماد الزيادة.`,
+          type: 'price_increase_partial', is_read: false,
+        });
+      }
+    }
+    logAuditActionRef.current('approve_price_increase', 'trip', tripId, { approver, amount: trip?.proposed_increase });
+    return { error: null };
+  }, [trips]);
+
+  const rejectPriceIncreaseAction = useCallback(async (tripId: string, rejector: 'client' | 'admin') => {
+    const result = await api.rejectPriceIncrease(tripId, rejector);
+    if (result.error) return { error: result.error };
+
+    setTrips(prev => prev.map(t => t.id === tripId ? { ...t, [`increase_${rejector}_approval`]: 'rejected' as const } : t));
+
+    const trip = trips.find(t => t.id === tripId);
+    if (trip?.increase_requested_by) {
+      await api.createNotification({
+        user_id: trip.increase_requested_by,
+        title: `رفض ${rejector === 'client' ? 'العميل' : 'الإدارة'} زيادة السعر`,
+        body: `تم رفض طلب زيادة ${trip.proposed_increase} ر.س.`,
+        type: 'price_increase_rejected', is_read: false,
+      });
+    }
+    logAuditActionRef.current('reject_price_increase', 'trip', tripId, { rejector, amount: trip?.proposed_increase });
+    return { error: null };
+  }, [trips]);
+
   const assignDriverToTrip = useCallback(async (tripId: string, driverId: string, applicationId: string) => {
     const appResult = await api.updateApplicationStatus(applicationId, 'accepted');
     if (appResult.error) return { error: appResult.error };
@@ -574,6 +657,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       commissionPayments, loadCommissionPayments, getCommissionForTrip,
       uploadReceipt, confirmCommission, rejectCommission,
       setDriverStatus, isDataLoading, refreshData: loadAllData,
+      requestPriceIncrease: requestPriceIncreaseAction,
+      approvePriceIncrease: approvePriceIncreaseAction,
+      rejectPriceIncrease: rejectPriceIncreaseAction,
     }}>
       {children}
     </AppContext.Provider>

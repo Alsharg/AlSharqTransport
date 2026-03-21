@@ -464,6 +464,47 @@ export async function updateDriverLocation(driverId: string, lat: number, lng: n
   return { error: error?.message || null };
 }
 
+// ===== Price Increase Requests =====
+export async function requestPriceIncrease(tripId: string, driverId: string, amount: number) {
+  const { data, error } = await supabase.from('trips').update({
+    proposed_increase: amount,
+    increase_requested_by: driverId,
+    increase_client_approval: 'pending',
+    increase_admin_approval: 'pending',
+    updated_at: new Date().toISOString(),
+  }).eq('id', tripId).select().single();
+  if (error) return { data: null, error: error.message };
+  return { data, error: null };
+}
+
+export async function approvePriceIncrease(tripId: string, approver: 'client' | 'admin') {
+  const field = approver === 'client' ? 'increase_client_approval' : 'increase_admin_approval';
+  const { data: trip, error: fetchErr } = await supabase.from('trips').select('*').eq('id', tripId).single();
+  if (fetchErr) return { data: null, error: fetchErr.message };
+
+  const updates: any = { [field]: 'approved', updated_at: new Date().toISOString() };
+
+  // If both approved, apply the increase to price
+  const otherField = approver === 'client' ? 'increase_admin_approval' : 'increase_client_approval';
+  if (trip[otherField] === 'approved') {
+    updates.price = Number(trip.price) + Number(trip.proposed_increase);
+  }
+
+  const { data, error } = await supabase.from('trips').update(updates).eq('id', tripId).select().single();
+  if (error) return { data: null, error: error.message };
+  return { data, error: null };
+}
+
+export async function rejectPriceIncrease(tripId: string, rejector: 'client' | 'admin') {
+  const field = rejector === 'client' ? 'increase_client_approval' : 'increase_admin_approval';
+  const { data, error } = await supabase.from('trips').update({
+    [field]: 'rejected',
+    updated_at: new Date().toISOString(),
+  }).eq('id', tripId).select().single();
+  if (error) return { data: null, error: error.message };
+  return { data, error: null };
+}
+
 // ===== AI Assistant =====
 export async function askAIAssistant(prompt: string, context?: string) {
   const { data, error } = await supabase.functions.invoke('ai-trip-assistant', { body: { prompt, context } });

@@ -79,6 +79,10 @@ export interface Trip {
   payment_type?: 'prepaid' | 'deferred';
   commission_due_date?: string;
   passengers_data?: any[];
+  proposed_increase?: number;
+  increase_client_approval?: 'pending' | 'approved' | 'rejected' | null;
+  increase_admin_approval?: 'pending' | 'approved' | 'rejected' | null;
+  increase_requested_by?: string;
 }
 
 export interface Earning {
