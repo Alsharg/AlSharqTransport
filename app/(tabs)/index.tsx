@@ -12,6 +12,7 @@ import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../hooks/useAuth';
 import { Trip, getTripTypeIcon, getStatusColor, formatTripNumber } from '../../services/types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { DriverSchedule } from '../../components/feature/DriverSchedule';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -130,6 +131,9 @@ export default function HomeScreen() {
             ))
           )}
         </Animated.View>
+
+        {/* Driver Subscriber Schedule */}
+        {userId ? <DriverSchedule trips={trips} driverId={userId} /> : null}
 
         {/* Daily Summary */}
         <Animated.View entering={FadeInDown.duration(400).delay(500)} style={styles.section}>

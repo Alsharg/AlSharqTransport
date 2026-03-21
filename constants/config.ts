@@ -24,11 +24,19 @@ export const config = {
   } as const,
   
   // Trip types
+  // Google Maps
+  googleMapsKey: 'AIzaSyBgh-D-6VzxB1D-qn29iTAnGbGRUKjDMYs',
+
+  // Pricing
+  pricePerKm: 0.8,
+  baseMonthlyPrice: 100,
+  extraPassengerPercent: 15,
+
   tripTypes: {
     employee: 'توصيل موظفين',
-    monthly: 'توصيل شهري',
+    monthly: 'اشتراك شهري',
     delivery: 'توصيل طلبات',
-    private: 'مشوار خاص',
+    private: 'اشتراك شهري',
   } as const,
   
   // Contact

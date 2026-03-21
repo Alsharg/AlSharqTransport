@@ -78,6 +78,7 @@ export interface Trip {
   client_phone?: string;
   payment_type?: 'prepaid' | 'deferred';
   commission_due_date?: string;
+  passengers_data?: any[];
 }
 
 export interface Earning {
@@ -236,7 +237,7 @@ export interface ConversationSummary {
 // ===== Helper Functions =====
 
 export const getTripTypeLabel = (type: Trip['type']): string => {
-  const labels = { employee: 'توصيل موظفين', monthly: 'توصيل شهري', delivery: 'توصيل طلبات', private: 'مشوار خاص' };
+  const labels = { employee: 'توصيل موظفين', monthly: 'اشتراك شهري', delivery: 'توصيل طلبات', private: 'اشتراك شهري' };
   return labels[type] || type;
 };
 
@@ -246,7 +247,7 @@ export const getTripStatusLabel = (status: Trip['status']): string => {
 };
 
 export const getTripTypeIcon = (type: Trip['type']): string => {
-  const icons = { employee: 'groups', monthly: 'event-repeat', delivery: 'local-shipping', private: 'person-pin-circle' };
+  const icons = { employee: 'groups', monthly: 'event-repeat', delivery: 'local-shipping', private: 'event-repeat' };
   return icons[type] || 'local-taxi';
 };
 
