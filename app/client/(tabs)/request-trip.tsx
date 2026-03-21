@@ -11,7 +11,8 @@ import { theme, typography } from '../../../constants/theme';
 import { useApp } from '../../../contexts/AppContext';
 import { useAuth } from '../../../hooks/useAuth';
 import { LocationPicker } from '../../../components/maps/LocationPicker';
-import { calculateDistance, calculateMonthlyPrice } from '../../../services/distance';
+import { RoutePreview } from '../../../components/maps/RoutePreview';
+import { calculateDistance, calculateMonthlyPrice, RouteInfo } from '../../../services/distance';
 
 const TRIP_TYPES = [
   { id: 'monthly', label: 'اشتراك شهري', icon: 'event-repeat', color: '#3B82F6', desc: 'توصيل يومي ذهاب وعودة' },
@@ -59,6 +60,7 @@ export default function RequestTripScreen() {
 
   // Distance & pricing
   const [distanceKm, setDistanceKm] = useState(0);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [pricingBreakdown, setPricingBreakdown] = useState<{
     baseMonthly: number;
     passengerSurcharge: number;
@@ -86,55 +88,28 @@ export default function RequestTripScreen() {
     setWorkDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
   };
 
-  // Auto-calculate distance and price when locations change
+  // Recalculate pricing when route info or work days change
   useEffect(() => {
-    if (homeLocation && workLocation && workDays.length > 0) {
-      calculatePricing();
-    } else {
-      setPricingBreakdown(null);
-    }
-  }, [homeLocation, workLocation, workDays.length, passengers]);
-
-  const calculatePricing = useCallback(async () => {
-    if (!homeLocation || !workLocation || workDays.length === 0) return;
-
-    setCalculatingDistance(true);
-    try {
-      const result = await calculateDistance(
-        homeLocation.lat, homeLocation.lng,
-        workLocation.lat, workLocation.lng
-      );
-
-      let oneWayKm = 0;
-      if (result) {
-        oneWayKm = result.distanceKm;
-        setDistanceKm(oneWayKm);
-      } else {
-        // Fallback: Haversine approximation
-        const R = 6371;
-        const dLat = ((workLocation.lat - homeLocation.lat) * Math.PI) / 180;
-        const dLon = ((workLocation.lng - homeLocation.lng) * Math.PI) / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos((homeLocation.lat * Math.PI) / 180) * Math.cos((workLocation.lat * Math.PI) / 180) *
-          Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        oneWayKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        setDistanceKm(Math.round(oneWayKm * 10) / 10);
-      }
-
+    if (routeInfo && workDays.length > 0) {
       const pricing = calculateMonthlyPrice(
-        oneWayKm,
+        routeInfo.distanceKm,
         DEFAULT_PRICE_PER_KM,
         DEFAULT_BASE_MONTHLY,
         workDays.length,
         passengers,
         EXTRA_PASSENGER_PERCENT
       );
+      setDistanceKm(routeInfo.distanceKm);
       setPricingBreakdown(pricing);
-    } catch (e) {
-      console.error('Pricing calculation error:', e);
+    } else if (!routeInfo) {
+      setPricingBreakdown(null);
     }
+  }, [routeInfo, workDays.length, passengers]);
+
+  const handleRouteCalculated = useCallback((info: RouteInfo) => {
+    setRouteInfo(info);
     setCalculatingDistance(false);
-  }, [homeLocation, workLocation, workDays.length, passengers]);
+  }, []);
 
   const updatePassengerData = (index: number, field: keyof PassengerLocation, value: any) => {
     setPassengersData(prev => {
@@ -277,6 +252,17 @@ export default function RequestTripScreen() {
               onChange={setWorkLocation}
             />
           </Animated.View>
+
+          {/* Route Preview Map */}
+          {homeLocation && workLocation ? (
+            <Animated.View entering={FadeInDown.duration(400).delay(150)}>
+              <RoutePreview
+                home={homeLocation}
+                work={workLocation}
+                onRouteCalculated={handleRouteCalculated}
+              />
+            </Animated.View>
+          ) : null}
 
           {/* Passengers & Gender */}
           <Animated.View entering={FadeInDown.duration(300).delay(200)}>
